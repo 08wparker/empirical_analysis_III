@@ -1,5 +1,7 @@
 ---
 title: 'ECON312 Problem Set 1: question 3'
+author: Futing Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output:
   pdf_document:
     toc: yes
@@ -8,18 +10,21 @@ output:
     toc: yes
     toc_depth: 2
     toc_float: yes
-authors: Futing Chen, Will Parker
 ---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
 
 ```{r, cache = FALSE}
 library(tidyverse)
 library(knitr)
 ```
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
-```
 
+\pagebreak
 # Monte Carlo Simulations
 
 Consider the model:
@@ -27,7 +32,8 @@ Consider the model:
 $$Y_i = X_i'\beta + U_i$$
 $$U_i|X_i \overset{i.i.d}{\sim} N(0, \sigma^2) $$
 
-**a)** Define $\beta = (2,3)^T$, $\sigma^2 = 4$; generate $N = 10,000$ values for $X \in \mathbb{R}^2$. Using your value for $\sigma^2$ draw $U$'s
+## Part **a)** 
+Define $\beta = (2,3)^T$, $\sigma^2 = 4$; generate $N = 10,000$ values for $X \in \mathbb{R}^2$. Using your value for $\sigma^2$ draw $U$'s
 
 ```{r}
 set.seed(123456)
@@ -59,12 +65,12 @@ data <- data %>%
 knitr::kable(head(data))
 ```
 
-Estimate $\hat{\beta}$ and its standard errors from your data using standard OLS
+### Estimate $\hat{\beta}$ and its standard errors from your data using standard OLS
 formulas.
 
 We did the actual matrix calculations
 
-## $\hat{beta} = (XX')^{-1}(XY)$
+#### $\hat{\beta} = (XX')^{-1}(XY)$
 ```{r}
 
 X <- as.matrix(tibble(int =1,
@@ -77,7 +83,7 @@ beta_n <- solve(t(X)%*%X)%*%t(X)%*%Y
 kable(beta_n)
 ```
 
-## Standard errors 
+#### Standard errors 
 
 Assuming homoskedasticity,
 
