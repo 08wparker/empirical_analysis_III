@@ -1,0 +1,105 @@
+---
+title: 'ECON312 Problem Set 1: question 3'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+authors: Futing Chen, Will Parker
+---
+
+```{r, cache = FALSE}
+library(tidyverse)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Monte Carlo Simulations
+
+Consider the model:
+
+$$Y_i = X_i'\beta + U_i$$
+$$U_i|X_i \overset{i.i.d}{\sim} N(0, \sigma^2) $$
+
+**a)** Define $\beta = (2,3)^T$, $\sigma^2 = 4$; generate $N = 10,000$ values for $X \in \mathbb{R}^2$. Using your value for $\sigma^2$ draw $U$'s
+
+```{r}
+set.seed(123456)
+# doesn't appear that the distribution of X was specified
+# I just used standard normal for x_1
+N <- 10000
+
+
+X_0 <- rep(1, N)
+X_1 <-rnorm(n = N)
+
+sigma <- 2
+U <- rnorm(n = N, sd = sigma)
+
+data <- tibble(X_0 = X_0,
+               X_1 = X_1,
+               U = U) 
+
+knitr::kable(head(data))
+```
+
+Finally, compute the $Y$'s
+```{r}
+beta <- c(2,3)
+
+data <- data %>%
+  mutate(Y = X_0*beta[[1]] + X_1*beta[[2]] + U)
+
+knitr::kable(head(data))
+```
+
+Estimate $\hat{\beta}$ and its standard errors from your data using standard OLS
+formulas.
+
+We did the actual matrix calculations
+
+## $\hat{beta} = (XX')^{-1}(XY)$
+```{r}
+
+X <- as.matrix(tibble(int =1,
+            X_1 = data$X_1))
+
+Y <- data$Y
+
+beta_n <- solve(t(X)%*%X)%*%t(X)%*%Y
+
+beta_n
+```
+
+## Standard errors 
+
+Assuming homoskedasticity,
+
+$$V = XX'\hat{\sigma}^2$$
+
+$$se(\hat{\beta_k}) = \sqrt{\frac{1}{n}diag(\hat{V})_k}$$
+```{r}
+u <- Y - X%*%beta_n
+
+u_sq <- as.vector(u *u)
+
+sigma_sq_hat <- sum(u_sq)/N
+
+V <- solve(t(X)%*%X)*sigma_sq_hat
+
+se <- sqrt(diag(V))
+
+se
+```
+
+### Verifying with statistical software
+```{r}
+ols <- lm(Y ~ X_1, data)
+
+summary(ols)
+```
