@@ -78,8 +78,8 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
     `theoretical result` = c(0, 
                            2*sqrt(sigma^2 + 1 -2*rho*sigma)*dnorm(0),
                            -2*sqrt(sigma^2 + 1 -2*rho*sigma)*dnorm(0),
-                           0,
-                           0)
+                           2*dnorm(0)*(sigma^2 - 1)/sqrt(sigma^2 + 1 -2*rho*sigma),
+                           2*dnorm(0)*(sigma^2 - 1)/sqrt(sigma^2 + 1 -2*rho*sigma))
   ) %>%
     mutate(estimate = comma(estimate),
            `theoretical result` = comma(`theoretical result`))
