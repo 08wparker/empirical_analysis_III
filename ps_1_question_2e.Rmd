@@ -13,7 +13,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(cache = FALSE, echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 ```{r, cache = FALSE}
@@ -41,7 +41,7 @@ comma <- function(x){
 ```{r}
 roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
   set.seed(seed)
-  cov_matrix <- matrix(c(sigma^2, rho*sigma, rho*sigma, sigma^2), nrow = 2)
+  cov_matrix <- matrix(c(sigma^2, rho*sigma, rho*sigma, 1), nrow = 2)
   
   sample <- mvtnorm::rmvnorm(n = N, means, cov_matrix) 
   
@@ -74,9 +74,15 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
   
   results <- tibble(
     `quantity of interest` = c("ATE", "ATT", "ATUT", "Beta_OLS", "E[Y|D =1] - E[Y|D =0]"),
-    estimate = c(ATE, ATT, ATUT, beta_OLS, E_diff)
+    estimate = c(ATE, ATT, ATUT, beta_OLS, E_diff),
+    `theoretical result` = c(0, 
+                           2*sqrt(sigma^2 + 1 -2*rho*sigma)*dnorm(0),
+                           -2*sqrt(sigma^2 + 1 -2*rho*sigma)*dnorm(0),
+                           0,
+                           0)
   ) %>%
-    mutate(estimate = comma(estimate))
+    mutate(estimate = comma(estimate),
+           `theoretical result` = comma(`theoretical result`))
   
   kable(results)
 }
@@ -85,6 +91,7 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
 ```
 
 \pagebreak
+
 # Simulation results
 ```{r}
 roy_model(2, 0.5)
