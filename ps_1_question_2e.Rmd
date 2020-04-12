@@ -45,7 +45,7 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
   
   sample <- mvtnorm::rmvnorm(n = N, means, cov_matrix) 
   
-  colnames(sample) <- c("U0", "U1")
+  colnames(sample) <- c("U1", "U0")
   
   sample <- as_tibble(sample) %>%
     mutate(D = ifelse(U1 > U0, 1, 0),
@@ -59,21 +59,27 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
   ATUT <- filter(sample, D == 0)$beta %>% mean()
   
   # beta OLS with matrix calculation
-  X <- rep(1, length(sample$D)) %>% cbind(sample$D)
+  # X <- rep(1, length(sample$D)) %>% cbind(sample$D)
+  # 
+  # beta_OLS <- solve(t(X)%*%X)%*%t(X)%*%sample$Y
   
-  beta_OLS <- solve(t(X)%*%X)%*%t(X)%*%sample$Y
+  model <- lm(Y ~ D, data = sample)
   
-  beta_OLS <- beta_OLS[[2]]
+  beta_OLS <- model$coefficients[2]
   
   E_Y_D1 = filter(sample, D ==1)$Y %>% mean()
   
   E_Y_D0 = filter(sample, D ==0)$Y %>% mean()
   
   E_diff = E_Y_D1 - E_Y_D0
-  #lm(Y ~ D, data = sample)
+
   
   results <- tibble(
-    `quantity of interest` = c("ATE", "ATT", "ATUT", "Beta_OLS", "E[Y|D =1] - E[Y|D =0]"),
+    `quantity of interest` = c("ATE", 
+                               "ATT", 
+                               "ATUT", 
+                               "Beta_OLS",
+                               "E[Y|D =1] - E[Y|D =0]"),
     estimate = c(ATE, ATT, ATUT, beta_OLS, E_diff),
     `theoretical result` = c(0, 
                            2*sqrt(sigma^2 + 1 -2*rho*sigma)*dnorm(0),
@@ -81,8 +87,8 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
                            2*dnorm(0)*(sigma^2 - 1)/sqrt(sigma^2 + 1 -2*rho*sigma),
                            2*dnorm(0)*(sigma^2 - 1)/sqrt(sigma^2 + 1 -2*rho*sigma))
   ) %>%
-    mutate(estimate = comma(estimate),
-           `theoretical result` = comma(`theoretical result`))
+    mutate(estimate = round(estimate, 2),
+           `theoretical result` = round(`theoretical result`,2))
   
   kable(results)
 }
