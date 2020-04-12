@@ -1,0 +1,122 @@
+---
+title: 'ECON312 Problem Set 1: question 2e'
+author: Futing Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(tidyverse)
+library(knitr)
+```
+
+
+```{r, include = FALSE}
+comma <- function(x){
+  case_when(
+    abs(x) > 10 ~ format(x, digits = 0, big.mark = ",", scientific = F),
+    abs(x) > 1 ~ format(x, digits = 2, big.mark = ",", scientific = F),
+    TRUE ~ format(x, digits = 2, big.mark = ",", scientific = F)
+  )
+    
+}
+```
+
+
+\pagebreak
+
+# Roy model simulator function
+
+```{r}
+roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
+  set.seed(seed)
+  cov_matrix <- matrix(c(sigma^2, rho*sigma, rho*sigma, sigma^2), nrow = 2)
+  
+  sample <- mvtnorm::rmvnorm(n = N, means, cov_matrix) 
+  
+  colnames(sample) <- c("U0", "U1")
+  
+  sample <- as_tibble(sample) %>%
+    mutate(D = ifelse(U1 > U0, 1, 0),
+           beta = U1-U0,
+           Y = D*U1 + (1-D)*U0)
+  
+  ATE <- sample$beta %>% mean()
+  
+  ATT <- filter(sample, D ==1)$beta %>% mean()
+  
+  ATUT <- filter(sample, D == 0)$beta %>% mean()
+  
+  # beta OLS with matrix calculation
+  X <- rep(1, length(sample$D)) %>% cbind(sample$D)
+  
+  beta_OLS <- solve(t(X)%*%X)%*%t(X)%*%sample$Y
+  
+  beta_OLS <- beta_OLS[[2]]
+  
+  E_Y_D1 = filter(sample, D ==1)$Y %>% mean()
+  
+  E_Y_D0 = filter(sample, D ==0)$Y %>% mean()
+  
+  E_diff = E_Y_D1 - E_Y_D0
+  #lm(Y ~ D, data = sample)
+  
+  results <- tibble(
+    `quantity of interest` = c("ATE", "ATT", "ATUT", "Beta_OLS", "E[Y|D =1] - E[Y|D =0]"),
+    estimate = c(ATE, ATT, ATUT, beta_OLS, E_diff)
+  ) %>%
+    mutate(estimate = comma(estimate))
+  
+  kable(results)
+}
+
+
+```
+
+\pagebreak
+# Simulation results
+```{r}
+roy_model(2, 0.5)
+```
+
+
+The simulation shows that
+
+$$ E[Y| D= 1] - E[Y|D = 0] = \beta_{OLS} $$
+
+```{r}
+roy_model(2, 0)
+```
+
+
+```{r}
+roy_model(2, -0.5)
+```
+
+# Fixing $\rho= 0.5$ and varying $\sigma$
+```{r}
+roy_model(1, 0.5)
+```
+
+```{r}
+roy_model(2, 0.5)
+```
+
+```{r}
+roy_model(4, 0.5)
+```
+
+```{r}
+roy_model(10, 0.5)
+```
