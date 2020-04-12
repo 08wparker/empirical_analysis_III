@@ -1,0 +1,100 @@
+---
+title: "ECON312 Problem Set 1: question 2"
+author: "Futing Chen, Will Parker"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(MASS)
+library(dplyr)
+```
+
+
+\pagebreak
+## Part **e)** 
+To compute the parameters, we first define the following function:
+
+```{r}
+partial<-function(sigma,rho,seed=1219){
+  #draw pairs (U1,U0)
+  Sigma <- matrix(c(sigma^2,rho*sigma,rho*sigma,1),2,2)
+  set.seed(seed)
+  U <- as.data.frame(mvrnorm(n=10000, mu=c(0, 0), Sigma))
+  U <- U %>% rename(U1=V1,U0=V2)  %>% 
+    mutate(delta=U1-U0, D=ifelse(U1>U0,1,0), Y=D*U1+(1-D)*U0) 
+  #compute the four parameters ATE, ATT, ATUT and beta
+  ATE <- mean(U$delta)
+  ATT <- mean(U$delta[U$D==1])
+  ATUT <- mean(U$delta[U$D==0])
+  m <- lm(Y~D, data=U)
+  beta <- m$coefficients[2]
+  diff <- mean(U$Y[U$D==1])-mean(U$Y[U$D==0]) #E[Y|D=1]-E[Y|D=0]
+  cat("ATE:  ",ATE,"\nATT:  ", ATT,"\nATUT: ",ATUT,"\nbeta: ",beta, "\ndiff: ", diff)
+}
+```
+
+\begin(enumerare)[(1)]
+\item $\sigma=2, \rho=0.5$ \par
+
+```{r}
+partial(sigma=2,rho=0.5) 
+#ATE:   0.01116046 
+#ATT:   1.381339 
+#ATUT:  -1.381674 
+#beta:  1.380979 
+#diff:  1.380979
+```
+
+where "diff" refers to $E[Y|D=1]-E[Y|D=0]$. Clearly, $E[Y|D=1]-E[Y|D=0]=\beta_{OLS}$.
+
+\item $\sigma=2, \rho=0$ \par
+
+```{r}
+partial(sigma=2,rho=0)
+#ATE:   0.01009405 
+#ATT:   1.773898 
+#ATUT:  -1.788622 
+#beta:  1.04362 
+#diff:  1.04362
+```
+
+Still, $E[Y|D=1]-E[Y|D=0]=\beta_{OLS}$.
+
+\item $\sigma=2, \rho=-0.5$ \par
+
+```{r}
+partial(sigma=2,rho=-0.5)
+#ATE:   0.004251407 
+#ATT:   2.102715 
+#ATUT:  -2.100097 
+#beta:  0.8803842 
+#diff:  0.8803842
+```
+
+Still, $E[Y|D=1]-E[Y|D=0]=\beta_{OLS}$.
+
+\end{enumerate}
+
+Finally, we want to verify $\partial parameter_j/\partial \sigma$ evaluated at $\rho=0.5$:
+```{r}
+partial(sigma=0.1,rho=0.5)
+```
+
+
+
+
+
+
+
