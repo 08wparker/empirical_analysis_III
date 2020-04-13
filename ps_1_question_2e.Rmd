@@ -22,18 +22,6 @@ library(knitr)
 ```
 
 
-```{r, include = FALSE}
-comma <- function(x){
-  case_when(
-    abs(x) > 10 ~ format(x, digits = 0, big.mark = ",", scientific = F),
-    abs(x) > 1 ~ format(x, digits = 2, big.mark = ",", scientific = F),
-    TRUE ~ format(x, digits = 2, big.mark = ",", scientific = F)
-  )
-    
-}
-```
-
-
 \pagebreak
 
 # Roy model simulator function
@@ -58,11 +46,7 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
   
   ATUT <- filter(sample, D == 0)$beta %>% mean()
   
-  # beta OLS with matrix calculation
-  # X <- rep(1, length(sample$D)) %>% cbind(sample$D)
-  # 
-  # beta_OLS <- solve(t(X)%*%X)%*%t(X)%*%sample$Y
-  
+  # beta OLS
   model <- lm(Y ~ D, data = sample)
   
   beta_OLS <- model$coefficients[2]
@@ -96,6 +80,29 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
 
 ```
 
+
+```{r}
+plot_treatment_effects <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
+  set.seed(seed)
+  cov_matrix <- matrix(c(sigma^2, rho*sigma, rho*sigma, 1), nrow = 2)
+  
+  sample <- mvtnorm::rmvnorm(n = N, means, cov_matrix) 
+  
+  colnames(sample) <- c("U1", "U0")
+  
+  sample <- as_tibble(sample) %>%
+    mutate(D = ifelse(U1 > U0, 1, 0),
+           beta = U1-U0,
+           Y = D*U1 + (1-D)*U0)
+  
+  sample %>%
+    ggplot(aes(x = beta, fill = factor(D))) +
+    geom_histogram(binwidth = 1, center = 0) +
+    ggtitle(paste0("sigma =", sigma, ", rho=", rho)) +
+    labs(x = "U1 - U0", fill = "treatment selection")
+}
+```
+
 \pagebreak
 
 # Simulation results
@@ -103,19 +110,22 @@ roy_model <- function(sigma, rho, N = 10000, means = c(0,0), seed = 12346){
 roy_model(2, 0.5)
 ```
 
-
 The simulation shows that
 
 $$ E[Y| D= 1] - E[Y|D = 0] = \beta_{OLS} $$
+
+
 
 ```{r}
 roy_model(2, 0)
 ```
 
-
 ```{r}
 roy_model(2, -0.5)
 ```
+
+
+
 
 # Fixing $\rho= 0.5$ and varying $\sigma$
 ```{r}
@@ -133,3 +143,17 @@ roy_model(4, 0.5)
 ```{r}
 roy_model(10, 0.5)
 ```
+
+
+
+The increase in magnitude of ATT and ATUT as sigma increases can be explained by a larger variance in $U_1 - U_0$ and the $D = \mathbf{1}[U_1 > U_0]$ selection mechanism, as illustrated by these plots
+```{r}
+plot_treatment_effects(2, 0.5) +
+      lims(x = c(-15, 15))
+```
+
+```{r}
+plot_treatment_effects(4, 0.5) +
+      lims(x = c(-15, 15))
+```
+
