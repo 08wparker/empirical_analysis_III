@@ -32,7 +32,7 @@ Consider the model:
 $$Y_i = X_i'\beta + U_i$$
 $$U_i|X_i \overset{i.i.d}{\sim} N(0, \sigma^2) $$
 
-## Part **a)** 
+## Part a) 
 Define $\beta = (2,3)^T$, $\sigma^2 = 4$; generate $N = 10,000$ values for $X \in \mathbb{R}^2$. Using your value for $\sigma^2$ draw $U$'s
 
 ```{r}
@@ -65,8 +65,7 @@ data <- data %>%
 knitr::kable(head(data))
 ```
 
-### Estimate $\hat{\beta}$ and its standard errors from your data using standard OLS
-formulas.
+### Estimate $\hat{\beta}$ and its standard errors from your data using standard OLS formulas.
 
 We did the actual matrix calculations
 
@@ -85,7 +84,7 @@ kable(beta_n)
 
 #### Standard errors 
 
-Assuming homoskedasticity,
+Under homoskedasticity which is given in the model,
 
 $$V = XX'\hat{\sigma}^2$$
 
@@ -110,3 +109,195 @@ ols <- lm(Y ~ X_1, data)
 
 summary(ols)
 ```
+
+
+## Part b)
+
+Write a function to generate the $\hat{\beta}^{(s)}$s
+```{r}
+
+beta_sampler <- function(N = 10000, sigma = 2, beta =  c(2,3)){
+  # we used standard normal for x_1
+  X_0 <- rep(1, N)
+  X_1 <-rnorm(n = N)
+  
+  
+  U <- rnorm(n = N, sd = sigma)
+  
+  data <- tibble(X_0 = X_0,
+                 X_1 = X_1,
+                 U = U) 
+  data <- data %>%
+    mutate(Y = X_0*beta[[1]] + X_1*beta[[2]] + U)
+  
+  X <- as.matrix(tibble(int =1,
+              X_1 = data$X_1))
+  
+  Y <- data$Y
+  
+  beta_n <- solve(t(X)%*%X)%*%t(X)%*%Y
+  
+  return(beta_n)
+}
+```
+
+```{r, cache=TRUE}
+S <- 10000
+
+beta_0_list <- vector(mode = "numeric" , length = S)
+beta_1_list <- vector(mode = "numeric" , length = S)
+
+set.seed(123456)
+
+for (k in seq(1:S)) {
+  current_sample <- beta_sampler()  
+  
+  beta_0_list[k] <- current_sample[[1]]
+  beta_1_list[k] <- current_sample[[1]]
+  
+}
+```
+
+```{r}
+tibble(beta_1 = beta_1_list) %>%
+  ggplot(aes(x = beta_1)) + 
+  geom_histogram()
+```
+
+### Standard error of $\hat(\beta_k)$
+
+First we need to justify that 
+
+$$\sqrt{\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)})^2 - (\frac{1}{S}\sum_{s=1}^S \hat\beta_k^{(s)})^2} \overset{p}{\to} se(\hat{\beta_k}| X_1, X_2,..X_n)$$
+
+First note by WILLIN that because $\beta_k$ is a random variable
+
+$$\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)}) \overset{p}{\to} E[\beta_k]$$
+
+So then by the continuous mapping theorem
+
+$$\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)})^2 \overset{p}{\to} E[\beta_k^2]$$
+
+And again by the continuous mapping theorem
+
+$$\sqrt{\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)})^2 - (\frac{1}{S}\sum_{s=1}^S \hat\beta_k^{(s)})^2} \overset{p}{\to} \sqrt{E[\beta_k^2] - E[\beta_k]^2}  = se(\hat{\beta_k}| X_1, X_2,..X_n)$$
+
+
+
+### computing $\sqrt{\hat{Var}[\hat{\beta}^{(s)}]}$
+```{r}
+sd(beta_1_list)
+```
+Very close to standard error produced by OLS procedure 
+
+# Nonparametric Bootstrap
+
+## Part a)
+```{r}
+set.seed(123456)
+rct_sample <- function(N = 10000){
+  U_1 <- rnorm(n = N)
+  U_2 <- rnorm(n = N)
+  
+  assignment <- runif(n = N)
+  
+  sample <- tibble(U_1,
+                   U_2,
+                   assignment) %>%
+    mutate(Y_1 = 5 + U_1,
+           Y_0 = 2 + U_2,
+           D = ifelse(assignment>0.5, 1, 0),
+           beta = Y_1 - Y_0,
+           Y = Y_0 + D*beta)
+
+  
+  return(sample)
+  
+}
+
+single_sample <- rct_sample()
+
+summary(lm(Y ~ D, data = single_sample))
+```
+
+OLS estimates are consistent
+
+\begin{math}
+\begin{aligned}
+E[\beta_{OLS}] =\frac{Cov(Y, D)}{Var(D)} =\frac{Cov(DY_1+(1-D)Y_0, D)}{Var(D)} \\
+=\frac{E[DY_1+D(1-D)Y_0]-E[DY_1+(1-D)Y_0]E[D]}{E[D](1-E[D])}\\
+    =\frac{E[DY_1]-E[DY_1]E[D]-E[(1-D)Y_0]E[D]}{E[D](1-E[D])}\\
+    =\frac{E[Y_1|D=1]E[D](1-E[D])-E[Y_0|D=0](1-E[D])E[D]}{E[D](1-E[D])}\\
+    =E[Y_1|D=1]-E[Y_0|D=0] 
+\end{aligned}
+\end{math}
+
+Since $D \!\perp\!\!\!\perp  (Y_1,Y_0)$
+
+$$E[\beta_{OLS}] =E[Y_1|D=1]-E[Y_0|D=0] = E[Y_1] - E[Y_0] = ATE = ATT = ATUT$$
+
+
+## Part b)
+```{r, cache = TRUE}
+N <- 10000
+S <- 10000
+  
+beta_list <- vector(mode = "numeric", length = S)
+  
+for (k in seq(1:S)) {
+    bootstrap <- single_sample %>%
+      select(Y, D) %>%
+      sample_n(size = N, replace = TRUE)
+      
+    model <- lm(Y ~ D, data = bootstrap)
+    
+
+    beta_list[[k]] <- model$coefficients[[2]]
+}
+```
+
+
+### Standard error of $\hat{\beta_k}$
+```{r}
+sd(beta_list)
+```
+
+
+### Histogram
+```{r}
+tibble(beta = beta_list) %>%
+  ggplot(aes(x = beta)) +
+  geom_histogram()
+```
+
+
+
+### bad boostrap
+
+If $Y$ and $D$ were drawn independently from the sample, then treatment assignment would no longer be related to the observed outcome. We would be running a regression on $(Y_1, D_0)$, $(Y_1, D_1)$, $(Y_0, D_0)$, and $(Y_0, D_1)$ with equal probability (since $P(D =1) = 0.5$ in our example). This would lead to a estimate of a treatment effect of 0.
+
+```{r, cache = TRUE}
+
+N <- 10000
+S <- 10000
+  
+bad_boot_strap_list <- vector(mode = "numeric", length = S)
+  
+for (k in seq(1:S)) {
+    Y <- sample(single_sample$Y, size = N, replace = TRUE)
+    D <- sample(single_sample$Y, size = N, replace = TRUE)
+    
+    
+    model <- lm(Y ~ D)
+    
+
+    bad_boot_strap_list[[k]] <- model$coefficients[[2]]
+}
+
+tibble(beta = bad_boot_strap_list) %>%
+  ggplot(aes(x = beta)) +
+  geom_histogram()
+```
+
+
+
