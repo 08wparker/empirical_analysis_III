@@ -231,22 +231,27 @@ single_sample <- rct_sample()
 summary(lm(Y ~ D, data = single_sample))
 ```
 
-OLS estimates are consistent
+Proof that OLS estimates are consistent
 
-\begin{math}
-\begin{aligned}
-E[\beta_{OLS}] =\frac{Cov(Y, D)}{Var(D)} =\frac{Cov(DY_1+(1-D)Y_0, D)}{Var(D)} \\
-=\frac{E[DY_1+D(1-D)Y_0]-E[DY_1+(1-D)Y_0]E[D]}{E[D](1-E[D])}\\
-    =\frac{E[DY_1]-E[DY_1]E[D]-E[(1-D)Y_0]E[D]}{E[D](1-E[D])}\\
-    =\frac{E[Y_1|D=1]E[D](1-E[D])-E[Y_0|D=0](1-E[D])E[D]}{E[D](1-E[D])}\\
-    =E[Y_1|D=1]-E[Y_0|D=0] 
-\end{aligned}
-\end{math}
+Let $m$ be the number of treated individuals and $k$ be the number of untreated individuals. Then the OLS estimate of the treatment effect is
 
-Since $D \!\perp\!\!\!\perp  (Y_1,Y_0)$
+$$\hat{\beta}_{OLS} =  (\frac{1}{m}*\sum_1^m Y_{D=1}) - (\frac{1}{k}*\sum_1^k Y_{D=0} )$$
 
-$$E[\beta_{OLS}] =E[Y_1|D=1]-E[Y_0|D=0] = E[Y_1] - E[Y_0] = ATE = ATT = ATUT$$
+Because we have assigned D randomly and $D \!\perp\!\!\!\perp  (Y_1,Y_0)$, we can plug in our equations for $Y_1$ and $Y_0$
 
+$$\hat{\beta}_{OLS} =  (\frac{1}{m}*\sum_1^m 5 + U_1) - (\frac{1}{k}*\sum_1^k 2+ U_2)$$
+
+Since we are definining $P(D=1) = 0.5$, without loss of generality we can set $m = k = n/2$.  so we can simplify to
+
+$$\hat{\beta}_{OLS} =  3 + (\frac{1}{m}*\sum_1^m U_1) - (\frac{1}{k}*\sum_1^kU_2)$$
+because $U_1$ and $U_2$ are standard normal variables, by the WILLIN 
+$$\frac{1}{m}*\sum_1^m U_1 \overset{p}{\to} 0$$
+$$\frac{1}{k}*\sum_1^k U_2 \overset{p}{\to} 0$$
+
+So by the continuos mapping theorem
+
+$$\hat{\beta}_{OLS} \overset{p}{\to}  3 = E[Y_1 - Y_0]$$
+so OLS gives a consistent estimate of the average treatment effect
 
 ## Part b)
 ```{r, cache = TRUE}
