@@ -86,7 +86,7 @@ kable(beta_n, col.names = "Beta")
 
 Under homoskedasticity which is given in the model,
 
-$$V = XX'\hat{\sigma}^2$$
+$$V = (XX')^{-1}\hat{\sigma}^2$$
 
 $$se(\hat{\beta_k}) = \sqrt{\frac{1}{n}diag(\hat{V})_k}$$
 ```{r}
