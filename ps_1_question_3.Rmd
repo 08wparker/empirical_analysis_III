@@ -79,7 +79,7 @@ Y <- data$Y
 
 beta_n <- solve(t(X)%*%X)%*%t(X)%*%Y
 
-kable(beta_n)
+kable(beta_n, col.names = "Beta")
 ```
 
 #### Standard errors 
@@ -100,7 +100,7 @@ V <- solve(t(X)%*%X)*sigma_sq_hat
 
 se <- sqrt(diag(V))
 
-kable(se)
+kable(se, col.names = "standard error")
 ```
 
 ### Verifying with statistical software
@@ -153,14 +153,14 @@ for (k in seq(1:S)) {
   current_sample <- beta_sampler()  
   
   beta_0_list[k] <- current_sample[[1]]
-  beta_1_list[k] <- current_sample[[1]]
+  beta_1_list[k] <- current_sample[[2]]
   
 }
 ```
 
 ```{r}
-tibble(beta_1 = beta_1_list) %>%
-  ggplot(aes(x = beta_1)) + 
+tibble(beta_0 = beta_0_list) %>%
+  ggplot(aes(x = beta_0)) + 
   geom_histogram()
 ```
 
