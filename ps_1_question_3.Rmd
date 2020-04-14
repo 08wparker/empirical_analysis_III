@@ -1,6 +1,6 @@
 ---
 title: 'ECON312 Problem Set 1: question 3'
-author: Futing Chen, Will Parker
+author: Futing Chen, Hongfan Chen, Will Parker
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
 output:
   pdf_document:
@@ -86,6 +86,7 @@ kable(beta_n, col.names = "Beta")
 
 Under homoskedasticity which is given in the model,
 
+
 $$V = (XX')^{-1}\hat{\sigma}^2$$
 
 $$se(\hat{\beta_k}) = \sqrt{\frac{1}{n}diag(\hat{V})_k}$$
@@ -166,6 +167,9 @@ tibble(beta_0 = beta_0_list) %>%
 
 ### Standard error of $\hat(\beta_k)$
 
+Proof of consistency:
+
+
 First we need to justify that 
 
 $$\sqrt{\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)})^2 - (\frac{1}{S}\sum_{s=1}^S \hat\beta_k^{(s)})^2} \overset{p}{\to} se(\hat{\beta_k}| X_1, X_2,..X_n)$$
@@ -185,8 +189,15 @@ $$\sqrt{\frac{1}{S}\sum_{s=1}^S (\hat\beta_k^{(s)})^2 - (\frac{1}{S}\sum_{s=1}^S
 
 
 ### computing $\sqrt{\hat{Var}[\hat{\beta}^{(s)}]}$
+
+#### $se(\hat{\beta_{0}})$
 ```{r}
-sd(beta_1_list)
+sqrt(mean(beta_0_list^2) - mean(beta_0_list)^2)
+```
+
+#### $se(\hat{\beta_{1}})$
+```{r}
+sqrt(mean(beta_1_list^2) - mean(beta_1_list)^2)
 ```
 Very close to standard error produced by OLS procedure 
 
@@ -257,9 +268,9 @@ for (k in seq(1:S)) {
 ```
 
 
-### Standard error of $\hat{\beta_k}$
+### Standard error of $\hat{\beta}$
 ```{r}
-sd(beta_list)
+sqrt(mean(beta_list^2) - mean(beta_list)^2)
 ```
 
 
