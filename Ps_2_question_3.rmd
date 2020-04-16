@@ -1,0 +1,222 @@
+---
+title: 'ECON312 Problem Set 1: question 3'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(tidyverse)
+library(knitr)
+library(haven)
+library(MatchIt)
+```
+
+
+# Question 3
+
+```{r}
+data <- read_dta("https://www.dropbox.com/s/dl/aw4yi13mz9z03yf/lalonde2.dta")
+```
+
+```{r}
+data %>%
+  group_by(sample) %>%
+  count(treated)
+```
+
+
+## a) Investigate whether the data is consistent with randomization of the treatment.
+
+We assume `sample ==1` indicates the NSW sample, as that is the only sample with non-missing treatment variables
+```{r}
+rct_data <- data %>%
+  filter(sample == 1)
+
+rct_data %>%
+  count(treated)
+```
+
+
+```{r}
+rct_data %>%
+  group_by(treated) %>%
+  summarise( total = n(),
+    mean_age = mean(age),
+            mean_black = mean(black),
+            mean_married = mean(married),
+            mean_nodegree = mean(nodegree),
+            mean_re74 = mean(re74))
+```
+
+
+
+
+It looks like more patients were not treated than received treatment, implying that treatments were not assigned with $P(D=1) = 0.5$. One explanation is that more patients were assigned to the control group but assignment was still probabilistic, just with $P(D=1) = 0.4$ or so. 
+
+However, a more likely explanation is that the work program was made available/recommended to half of the group but compliance was with the program was somewhere around 80%. This is suggested by some minor differences in some of the baseline covariates that would be unlikely under random assigment.  If this case it would be good to know initial group assignment which could be treated as an instrutmental variable.
+
+However the 1974 income distribution looks fairly similar in between the two groups, which is good if we want to assume $D \!\perp\!\!\!\perp  (Y_1,Y_0)$, $\hat{\beta}_{OLS}$ since clearly past and future income will be related.
+
+### 1974 real-income distribution in the NSW sample
+```{r}
+rct_data %>% 
+  ggplot(aes(x = re74, fill = factor(treated))) +
+  geom_density(alpha = 0.5)+
+  lims(x = c(0, 50000)) +
+  labs(fill = "Work program participation")
+```
+
+
+## b) Estimate the effect using the experimental sample.
+
+Assuming $D \!\perp\!\!\!\perp  (Y_1,Y_0)$, $\hat{\beta}_{OLS}$ will be a unbiased estimate of the $ATE$
+```{r}
+model <- lm(re78 ~ treated, data = rct_data)
+
+summary(model)
+
+ATE <- model$coefficients[[2]]
+```
+
+The $\hat{ATE}$ of the work experience program was +$`r round(ATE)`
+
+## c) Estimate the effect using OLS on observed data
+
+Now use the sample consisting in the treated from the NSW sample and the comparison individuals
+from the CPS sample.
+```{r}
+observed_controls_NSW_tx <- data %>%
+  filter(treated == 1 | is.na(treated)) %>%
+  mutate(treat_2 = ifelse(is.na(treated), 0, treated))
+
+observed_model <- lm(re78 ~ treat_2, observed_controls_NSW_tx)
+
+summary(observed_model)
+
+beta_OLS_observed <- observed_model$coefficients
+```
+
+Just comparing the observational cohort of non-treated people to the treated cohort leads a very negative and biased estimate of the $ATE$. There is obvious selection bias on covariates when comparing the two groups. People randomized into the NSW program had substantially lower incomes at baseline. It is quite clear that the treatment is correlated with potential outcomes in this sample
+
+## d) Investigate covariate balancing and support between the treated and the CPS sample.
+```{r}
+observed_controls_NSW_tx %>%
+  group_by(treat_2) %>%
+    summarise( total = n(),
+    mean_age = mean(age),
+            mean_black = mean(black),
+            mean_married = mean(married),
+            mean_nodegree = mean(nodegree),
+            mean_re74 = mean(re74))
+```
+
+### distribution of real-income in 1974 in the combined CPS and NSW treated sample
+```{r}
+observed_controls_NSW_tx %>% 
+  ggplot(aes(x = re74, fill = factor(treat_2))) +
+  geom_density(alpha = 0.5)+
+  lims(x = c(0, 50000)) +
+  labs(fill = "Work program participation")
+```
+
+## e) Estimate the effect using 1-1 nearest neighbor propensity score matching.
+
+### fit the propensity score
+```{r}
+treat_model_formula <- formula(treat_2 ~ age +  married+ nodegree + re74 + hisp + black)
+
+treatment_model <- glm(treat_model_formula, 
+                       data = observed_controls_NSW_tx,
+                       family = binomial())
+
+summary(treatment_model)
+```
+
+```{r}
+p_score <- predict(treatment_model, type = "response")
+
+observed_controls_NSW_tx <- observed_controls_NSW_tx %>% 
+  cbind(p_score)
+
+observed_controls_NSW_tx %>%
+  ggplot(aes(x= p_score, fill = factor(treat_2))) + 
+  geom_density() + 
+  labs(fill = "Work program participation") +
+  facet_wrap(~factor(treat_2), nrow = 2, scales = "free_y")+
+  lims(x= c(0,1))
+```
+Most of the propensity scores for the CPS sample are around 1.
+
+### 1-1 nearest neighbor matching
+
+```{r}
+
+treat_model_formula
+
+match <- matchit(treat_model_formula, 
+                       data = observed_controls_NSW_tx %>% select(treat_2, age, married, 
+                                                                  nodegree, re74, hisp, black),
+                 method = "nearest")
+
+p_match_sample <- observed_controls_NSW_tx %>% 
+  cbind(weights = match$weights) %>%
+  filter(weights ==1 | treat_2 ==1)
+
+p_match_sample %>%
+  count(treat_2)
+```
+
+#### Distribution of propensity score after 1-1 nearest neighbor matching
+```{r}
+p_match_sample %>%
+  ggplot(aes(x= p_score, fill = factor(treat_2))) + 
+  geom_density() + 
+  labs(fill = "Work program participation") +
+  facet_wrap(~factor(treat_2), nrow = 2, scales = "free_y")+
+  lims(x= c(0,1))
+```
+
+
+```{r}
+summary(match)
+```
+
+The covariate balance has improved considerably after propensity score matching
+
+#### Outcome model after propensity score matching
+```{r}
+p_match_model <- lm(re78 ~ treat_2, data = p_match_sample)
+
+summary(p_match_model)
+```
+
+After propensity score matching the treatement effect estimate, while less "wrong", still has a negative sign. This is concerning for either 1) misspecification of the propensity score model based on the observed covariates or 2) selection on unobservables.
+
+
+## f) Estimate the effect using the propensity score and local linear regression.
+
+TBD
+```{r}
+guassian_kernel <- function(p_1, p_2, h){
+  diff <- (p_1 - p_2)/h
+  exp(-diff^2/2)
+}
+```
+
+
+
+
