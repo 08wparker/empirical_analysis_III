@@ -1,0 +1,223 @@
+---
+title: 'ECON312 Problem Set 3: question 3'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(AER)
+library(broom)
+library(knitr)
+library(haven)
+library(dplyr)
+library(ggplot2)
+```
+
+
+\pagebreak
+# Problem 3
+## a) Discuss instrument exogeneity, exclusion and monotonicity.
+\begin{itemize}
+\item \textit{Exclusion restriction} requires that any effect of the lottery outcome ($Z$) on earnings (Y) must be through attending medical school ($D$), i.e., $Y_{d,0}=Y_{d,1}, \ d \in \{0,1\}, \ \forall i$. This assumption may fail.The try-again scheme implies that some lottery winners are those who lost the lottery before and hence put off attending the medical school and entering the job market. Winning lottery may thus be correlated with earnings by reducing work experience.
+
+\item \textit{Random assignment} assumption requires that the lottery outcomes are independent of potential outcomes and potential treatment status, i.e., $(Y_{11},Y_{10},Y_{01}, Y_{00}, D_1, D_0) \perp Z \ \forall i$. This assumption fails if lottery winners and losers differed in important unobserved characteristics. Since the probability of winning the lottery depended on high school grades, $(D_1, D_0)$ would not be independent of $Z$ if the lottery winners were mostly those with high learning ability and motivation and hence were more likely to take the treatment than the lottery losers otherwise would have done, making the distribution of $D_1$ different across lottery winners and losers. Clearly, the potential $Y$ would not be independent of Z either, if the lottery winners, with higher ability, earned more incomes by attending medical school than the lottery losers would otherwise have earned.
+
+\item \textit{Instrument exogeneity} is the combinition of exclusion restriction and random assignment. If one of the two assumptions fails, instrument exogeneity will fail. 
+
+\item In this setting, \textit{monotonicity} means $D_1 \geqslant D_0 \ \forall i$. This holds if there were no defiers, i.e., no one attended the medical school when he did not win the lottery and chose not to attend the school when he won the lottery. Since only those who apply for medical studies were assigned lotteries and were unlikely to forgo the chance if they won the lottery, monotonicity is reasonable.
+\end{itemize}
+
+## b) Assess instrument relevance.
+```{r}
+lottery <- read_dta("~/Desktop/UChicago/Empirical Analysis/EA III/part A/ps/ps3/lottery.dta")
+first_stage <- lm(d~z, data=lottery)
+kable(tidy(first_stage), digits=4, align='c',caption="First Stage")
+```
+
+The coefficient on $z$ in the first stage is nonzero and highly statistically significant ($t=26.7, \ p<.000$). Thus, we can conclude that $Z$ satisfies instrument relevance.
+
+## c) Estimate the return to attending medical school on earnings in 2007 using IV, and interpret the results.
+
+```{r}
+iv<-ivreg(lnw~d|z, data=lottery)
+kable(tidy(iv), digits=4, align='c',caption="Results of IV Regression")
+d_iv<-coef(iv)[2]
+100*(exp(d_iv)-1)
+```
+The IV estimate of $d$ is 0.1871 ($t=3.708, p<.000$). This result suggests that, on average, attending medical schools increased earnings in 2007 by 20.58% among the compliers, i.e., the applicants who attended medical schools after winning the lottery and did not attend medical schools after losing the lottery.
+
+## d) Count the number of compliers, and compare them to the population of applicants in terms of gender.
+The share of compliers is the wald first-stage:
+\[P(D_1=1,D_0=0)=E[D|Z=1]-E[D|Z=0]\]
+The relative likelihood a complier's gender $X$ is $x \in {0,1}$ compared to the population is 
+\[\frac{P(X=x|D_1>D_0)}{P(X=x)}=\frac{E[D|Z=1,X=x]-E[D|Z=0,X=x]}{E[D|Z=1]-E[D|Z=0]}\]
+
+
+```{r}
+#The size of compliers
+z_firststage<-coef(first_stage)[2]
+num_complier<-round(dim(lottery)[1]*z_firststage)
+
+#The relative likelihood a complier is female
+z_f <- coef(lm(d~z, data=lottery[lottery$female==1,]))[2]
+complier_f<-z_f/z_firststage
+
+#The relative likelihood a complier is male
+z_m <- coef(lm(d~z, data=lottery[lottery$female==0,]))[2]
+complier_m<-z_m/z_firststage
+
+results <- tibble("quantity of interest"=c("number of compliers",
+                                           "relative likelihood a complier is female",
+                                           "relative likelihood a complier is male"),
+                  "estimate"=c(num_complier,complier_f,complier_m))
+kable(results,digits=3)
+```
+
+The result shows that the compliers are more likely to be males and less likely to be females than the average applicant in the sample.
+
+## e) Is the IV estimate an estimate of the ATT? Explain why or why not.
+\begin{align*}
+  ATT=E[Y_1-Y_0|D=1]&=\underbrace{E[Y_1-Y_0|D_1>D_0]}_{LATE}P(D_1>D_0|D=1)\\
+  &+\underbrace{E[Y_1-Y_0|D_0=1]}_{\text{effect on always-takers}}P(D_0=1|D=1)
+\end{align*}
+where the two probabilities sum to one and 
+\[P(D_1>D_0|D=1)=\frac{P(Z=1)(E[D|Z=1]-E[D|Z=0])}{P(D=1)}\]
+Hence, the IV estimate is ATT if $P(D_1>D_0|D=1)=1$ or, equivalently, there are no always-takers. The latter is unlikely to be true, because for applicants who lost the lottery in 1989, some of them might win in 1990 and then attend medical schools. We can also check from data by estimating $P(D_1>D_0|D=1)$:
+
+```{r}
+complier_t <- mean(lottery$z)*z_firststage/mean(lottery$d)
+kable(complier_t, col.names = "P(D1>D0|D=1)")
+```
+
+Because 0.467 is far smaller than 1, the IV estimate is unlikely to estimate ATT.
+
+## f) Estimate the mean and distribution of Y0 and Y1 for compliers.
+```{r}
+lottery <- mutate(lottery, Y1=lnw*d, Y0=lnw*(1-d),md=1-d)
+mean_Y1 <- coef(ivreg(Y1~d|z, data=lottery))[2]
+mean_Y0 <- coef(ivreg(Y0~md|z, data=lottery))[2]
+kable(tibble("quantity of interest"=c("E[Y1|C=c]",
+                                      "E[Y0|C=c]"),
+             "estimate"=c(mean_Y1,mean_Y0)))
+```
+
+```{r}
+# estimate the share of compliers, never-takers and always-takers
+pc <- z_firststage
+pn <- mean(lottery$md[lottery$z==1])
+pa <- mean(lottery$d[lottery$z==0])
+# estimate pdf for each cell and counterfactual distributions
+dist <- lottery %>% group_by(z,d) %>% 
+  summarise (pdf=list(density(lnw, from = min(.$lnw), to = max(.$lnw)))) 
+x   <- dist$pdf[[1]]$x
+f00 <- dist$pdf[[1]]$y
+f01 <- dist$pdf[[2]]$y
+f10 <- dist$pdf[[3]]$y
+f11 <- dist$pdf[[4]]$y
+dist <- data.frame(x, f00, f01, f10, f11)
+dist <- mutate(dist, 
+               gc0 = f00*(pc+pn)/pc-f10*pn/pc,
+               gc1 = f11*(pc+pa)/pc-f01*pa/pc)
+# plot
+ggplot(dist, aes(x)) +
+  geom_line(aes(y=gc0, color = "Y0")) +
+  geom_line(aes(y=gc1, color = "Y1")) +
+  xlab("log(Wage)") + ylab("Density, Compliers") +
+  ggtitle("Distribution of Y0 and Y1 among Compliers") +
+  scale_color_manual("",values = c("blue","red"))
+```
+
+## g) What can you say about Y0 and Y1 for always- and never-takers?
+For always-takers, $D_1=D_0=1$, so $Y=Y_1$. Similarly, for never-takers, $Y=Y0$. Their distributions are:
+
+```{r}
+ggplot(dist, aes(x)) +
+  geom_line(aes(y=f01, color = "Y1, always-takers")) +
+  geom_line(aes(y=f10, color = "Y0, never-takers")) +
+  xlab("log(Wage)") + ylab("Density") +
+  ggtitle("Distribution of Y0 or Y1 for Awalys and Never-Takers") +
+  scale_color_manual("",values = c("blue","red"))
+```
+
+The plot shows that the potential earnings of always-takers are in general higher than the potential earnings of never-takers.
+
+## h) Estimate lottery category×year specific LATEs and combine these in one estimate. Compare this to the specification where you control for lottery category×year dummies and also interact the instrument with these dummies.
+
+```{r}
+# Estimate covariate-specific LATEs
+LATEs <- lottery %>% group_by(year,lotcateg) %>% 
+  do(LATE = coef(lm(lnw~d|z,data=.))[2]) %>%
+  mutate(LATE=as.numeric(LATE))
+
+kable(tibble("year"=c(1988,1989),
+             "Category 3"=LATEs$LATE[LATEs$lotcateg==3],
+             "Category 4"=LATEs$LATE[LATEs$lotcateg==4],
+             "Category 5"=LATEs$LATE[LATEs$lotcateg==5],
+             "Category 6"=LATEs$LATE[LATEs$lotcateg==6]), 
+      digits=4, align='c', caption="Lottery Category × Year Specific LATEs")
+```
+
+By problem 2 b), we can combine the covariate-specific LATEs into conditional LATE:
+\[E[Y_1-Y_0|D_1>D_0]=\sum_{x} LATE(x)\frac{E[D|Z=1,X=x]-E[D|Z=0,X=x]}{E[D|Z=1]-E[D|Z=0]}P(X=x)\]
+
+```{r}
+Px <- group_by(lottery, year, lotcateg)  %>% 
+  summarize(Px = n()/dim(lottery)[1]) 
+z_x <-  group_by(lottery, year, lotcateg)  %>% 
+  do(z_x = coef(lm(d~z,data=.))[2]) %>%
+  mutate(z_x=as.numeric(z_x))
+LATE <- left_join(LATEs, z_x,  by=c('year', 'lotcateg')) %>%
+  left_join(., Px,by=c('year', 'lotcateg'))
+LATE_uncond <- sum(LATE$LATE*(LATE$z_x/z_firststage)*LATE$Px)
+```
+
+Alternatively, we can use Abadie's kappa to estimate unconditional LATE: 
+\[E[Y_1-Y_0|D_1>D_0]=\frac{1}{P(D_1>D_0)}E[\kappa LATE(x)]\]
+where $\kappa=1-\frac{D(1-Z)}{P(Z=0|X)}-\frac{(1-D)Z}{P(Z=1|X)}$. \par
+
+
+```{r}
+# use Abadie's kappa to estimate E[Y1-Y0|D1>D0]
+lottery <- group_by(lottery, year, lotcateg)  %>% 
+  mutate(P_Z1_X=mean(z),     # P(Z=1|X)    
+         P_Z0_X=1-mean(z))   # P(Z=0|X)
+lottery <- left_join(lottery, LATEs, by=c('year', 'lotcateg'))
+lottery <- mutate(lottery, 
+                  kappa=1-d*(1-z)/P_Z0_X-z*(1-d)/P_Z1_X,
+                  kappa_LATE=kappa*LATE)  #kappa*covariate-specific LATE
+kappa_LATE <- mean(lottery$kappa_LATE)
+# compute unconditional LATE
+LATE_uncond_k <- kappa_LATE/z_firststage 
+kable(tibble("method"=c("integrate over X", "Abadie's kappa"), 
+             "estimate"=c(LATE_uncond,LATE_uncond_k)),
+      caption = "Unconditional LATE E[Y1-Y0|D1>D0]")
+```
+
+Next, we estimate the following specification using 2SLS:
+\begin{align*}
+lnw &=\alpha + \beta d + \alpha_x I\{X=x\} + \alpha_{xd} I\{X=x\}*d + e \\
+d   &=\gamma + \pi z + \gamma_x  I\{X=x\} + \gamma_{xz}  I\{X=x\}*z + u
+\end{align*}
+
+```{r}
+iv_c <- ivreg(lnw ~ d*factor(lotcateg) + d*factor(year) | 
+                z*factor(lotcateg) + z*factor(year) , data=lottery)
+kable(tidy(iv_c), digits=4, align='c',caption="2SLS Estimation")
+```
+
+The 2SLS estimate is $0.449 \ (t=0.725, p=0.469)$. This value is statistically insignificant and far larger than the unconditional LATE.
+
