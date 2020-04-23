@@ -214,10 +214,10 @@ d   &=\gamma + \pi z + \gamma_x  I\{X=x\} + \gamma_{xz}  I\{X=x\}*z + u
 \end{align*}
 
 ```{r}
-iv_c <- ivreg(lnw ~ d*factor(lotcateg) + d*factor(year) | 
-                z*factor(lotcateg) + z*factor(year) , data=lottery)
+iv_c <- ivreg(lnw ~ d*factor(lotcateg)*factor(year) | 
+                z*factor(lotcateg)*factor(year) , data=lottery)
 kable(tidy(iv_c), digits=4, align='c',caption="2SLS Estimation")
 ```
 
-The 2SLS estimate is $0.449 \ (t=0.725, p=0.469)$. This value is statistically insignificant and far larger than the unconditional LATE.
+The 2SLS estimate is $-0.8037 \ (t=-0.801, p=0.4235)$. This value is statistically insignificant and is of opposite sign of LATE.
 
