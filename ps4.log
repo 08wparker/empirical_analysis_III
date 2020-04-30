@@ -3,13 +3,13 @@
        log:  /Users/Rose-colored/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/ps4.
 > log
   log type:  text
- opened on:  30 Apr 2020, 12:04:18
+ opened on:  30 Apr 2020, 15:33:48
 
 . 
-. *****************************
-. ******* Problem Set 4 *******
-. *****************************
-. 
+end of do-file
+
+. do "/var/folders/tf/zrxxcwk12835qc2x_ctn4_hw0000gn/T//SD00357.000000"
+
 . clear all
 
 . set more off
@@ -68,7 +68,7 @@ Linear regression                                      Number of obs =    2023
 
 . 
 . /* Interpretation:
-> The estimated coefficient of classize drops from .324 (p=.000) to .023 (p=.592).
+> The estimated coefficient of classize drops from .317 (p=.000) to .017 (p=.686).
 > This result suggests that (1) the percentage of disadvantaged students and 
 > enrollment are important explanatory variables and (2) omitting them will lead 
 > to bias in the estimated class size effect. For example, because disadvantaged
@@ -145,7 +145,7 @@ largeclass1#c.diff_40 |
   6. end
 
 . 
-. bootstrap rd=r(rd), rep(100) seed(123) nowarn: rd  // bootstrap se= 2.696
+. bootstrap rd=r(rd), rep(100) seed(123) nowarn: rd  // bootstrap se= 2.534
 (running rd on estimation sample)
 
 Bootstrap replications (100)
@@ -168,7 +168,7 @@ Bootstrap results                               Number of obs      =       700
 
 . 
 . * Compare these results to the estimates you obtained with OLS.
-. /* The estimate given by the nonparametric approach is -1.65 (se=2.7, p=.541).
+. /* The estimate given by the nonparametric approach is -1.647 (se=2.534, p=.516).
 > This is much smaller in absolute magnitude than the OLS estimate 
 > -4.3 (se=1.592, p=.007).*/
 . 
@@ -271,6 +271,7 @@ Estimates adjusted for mass points in the running variable.
 
 . 
 . 
+. 
 . *** 6 ***
 . clear 
 
@@ -338,7 +339,7 @@ Instruments:   c_size tipuach pclassize
 
 . /* After controlling for the percentage of disadvantaged students, the estimated
 > coefficient on class size changes from -.075 (se=.11, p= .499) to
-> -.223 (se=.01, p=.025). It increases in absolute magnitude and becomes 
+> -.223 (se=.1, p=.025). It increases in absolute magnitude and becomes 
 > statistically significant, suggesting that it is better to condition the RDD on 
 > the percent of disadvantaged students.*/
 . 
@@ -347,7 +348,8 @@ Instruments:   c_size tipuach pclassize
 . hist c_size,  width(5) kdensity xline(40 80 120 160 200, lcol(red)) 
 (bin=45, start=5, width=5)
 
-. 
+. /* There is a jump at 40, suggesting that there may be sorting into 
+> schools that split students into smaller classes.*/
 . 
 . 
 . *** 10 ***
@@ -363,12 +365,10 @@ Instruments:   c_size tipuach pclassize
 
 . label var bin "Enrollment"
 
-. tw scatter binclassize bin, xtick(0(20)240) xlabel(0(20)240) name(plot1, replace)
+. 
+. tw (conn binclassize bin) (conn binmath bin, yaxis(2)), xtick(0(20)240) xlabel(0(20)240) 
 
-. tw scatter binmath bin, xtick(0(20)240) xlabel(0(20)240) name(plot2, replace)
-
-. graph combine plot1 plot2
-
+. 
 . 
 . 
 . *** 11 ***
@@ -427,6 +427,7 @@ Instruments:   c_size tipuach pclassize
 . graph combine plot3 plot4
 
 . /*The polynomial approximation captures the non-linearities well*/
+. 
 . 
 . 
 . *** 12 ***
@@ -580,5 +581,5 @@ Instruments:   c_size c_sizesq pclassize
        log:  /Users/Rose-colored/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/ps4.
 > log
   log type:  text
- closed on:  30 Apr 2020, 12:04:31
+ closed on:  30 Apr 2020, 15:35:17
 --------------------------------------------------------------------------------------------
