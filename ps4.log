@@ -1,0 +1,584 @@
+--------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/Rose-colored/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/ps4.
+> log
+  log type:  text
+ opened on:  30 Apr 2020, 12:04:18
+
+. 
+. *****************************
+. ******* Problem Set 4 *******
+. *****************************
+. 
+. clear all
+
+. set more off
+
+. cd "~/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/data"
+/Users/Rose-colored/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/data
+
+. use final5.dta
+
+. 
+. 
+. replace avgmath= avgmath-100 if avgmath>100
+(1 real change made)
+
+. replace avgmath=. if mathsize==0
+(1 real change made, 1 to missing)
+
+. 
+. 
+. *** 1 ***
+. reg avgmath classize, robust cluster(schlcode)              
+
+Linear regression                                      Number of obs =    2023
+                                                       F(  1,  1001) =   63.76
+                                                       Prob > F      =  0.0000
+                                                       R-squared     =  0.0477
+                                                       Root MSE      =  9.3696
+
+                            (Std. Err. adjusted for 1002 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |    .317787   .0397971     7.99   0.000     .2396917    .3958823
+       _cons |   57.78581    1.23791    46.68   0.000     55.35662    60.21501
+------------------------------------------------------------------------------
+
+. reg avgmath classize tipuach c_size, robust cluster(schlcode)
+
+Linear regression                                      Number of obs =    2023
+                                                       F(  3,  1001) =  133.35
+                                                       Prob > F      =  0.0000
+                                                       R-squared     =  0.2498
+                                                       Root MSE      =  8.3204
+
+                            (Std. Err. adjusted for 1002 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |   .0169003   .0418032     0.40   0.686    -.0651317    .0989324
+     tipuach |  -.3314471   .0186639   -17.76   0.000     -.368072   -.2948223
+      c_size |    .017065   .0075123     2.27   0.023     .0023234    .0318067
+       _cons |   70.14776   1.164688    60.23   0.000     67.86225    72.43327
+------------------------------------------------------------------------------
+
+. 
+. /* Interpretation:
+> The estimated coefficient of classize drops from .324 (p=.000) to .023 (p=.592).
+> This result suggests that (1) the percentage of disadvantaged students and 
+> enrollment are important explanatory variables and (2) omitting them will lead 
+> to bias in the estimated class size effect. For example, because disadvantaged
+> students are overrepresented in small classes, the OLS estimate without 
+> controling for enrollment will be upwardly biased and suggests that students in
+> larger classes have higher scores.*/
+. 
+. 
+. *** 2 ***
+. * limit the sample to schools with enrollment between 20-60 students
+. keep if c_size>=20 & c_size<=60
+(1329 observations deleted)
+
+. * Generate a (predicted) large class dummy: largeclass=I{enrollment<=40}
+. gen largeclass1 = c_size <= 40 
+
+. * OLS with a linear trend in enrollment
+. gen diff_40=c_size-40
+
+. reg avgmath i.largeclass##c.diff_40 tipuach, robust cluster(schlcode)
+
+Linear regression                                      Number of obs =     699
+                                                       F(  4,   463) =   63.77
+                                                       Prob > F      =  0.0000
+                                                       R-squared     =  0.3196
+                                                       Root MSE      =  8.6119
+
+                                      (Std. Err. adjusted for 464 clusters in schlcode)
+---------------------------------------------------------------------------------------
+                      |               Robust
+              avgmath |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+----------------------+----------------------------------------------------------------
+        1.largeclass1 |  -4.299815   1.591837    -2.70   0.007    -7.427934   -1.171695
+              diff_40 |   .0183108   .0822587     0.22   0.824    -.1433358    .1799574
+                      |
+largeclass1#c.diff_40 |
+                   1  |  -.2830043   .1253286    -2.26   0.024    -.5292877    -.036721
+                      |
+              tipuach |  -.3375029   .0218111   -15.47   0.000    -.3803638   -.2946419
+                _cons |   71.81067   1.035758    69.33   0.000      69.7753    73.84604
+---------------------------------------------------------------------------------------
+
+. /*largeclass: -4.3 (se=1.592, p=.007)*/
+. 
+. 
+. *** 3 ***
+. * Use Local Linear Regression to point estimate large class effect
+. gen x=0 in 1
+(699 missing values generated)
+
+. lpoly avgmath diff_40 if diff_40 <= 0, deg(1) gen(L) at(x) nograph 
+
+. lpoly avgmath diff_40 if diff_40 >= 0, deg(1) gen(R) at(x) nograph
+
+. gen rd_largeclass = L - R
+(699 missing values generated)
+
+. list rd_largeclass in 1  // -1.647234 
+
+     +-----------+
+     | rd_larg~s |
+     |-----------|
+  1. | -1.647234 |
+     +-----------+
+
+. 
+. * Use a nonparametric bootstrap to estimate the standard error 
+. program rd, rclass
+  1.         tempvar x L R 
+  2.         gen `x' = 0 in 1 
+  3.         lpoly avgmath diff_40 if diff_40 <= 0, deg(1) gen(`L') at(`x') nograph 
+  4.         lpoly avgmath diff_40 if diff_40 >= 0, deg(1) gen(`R') at(`x') nograph
+  5.         return scalar rd = `L' - `R' in 1
+  6. end
+
+. 
+. bootstrap rd=r(rd), rep(100) seed(123) nowarn: rd  // bootstrap se= 2.696
+(running rd on estimation sample)
+
+Bootstrap replications (100)
+----+--- 1 ---+--- 2 ---+--- 3 ---+--- 4 ---+--- 5 
+..................................................    50
+..................................................   100
+
+Bootstrap results                               Number of obs      =       700
+                                                Replications       =       100
+
+      command:  rd
+           rd:  r(rd)
+
+------------------------------------------------------------------------------
+             |   Observed   Bootstrap                         Normal-based
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+          rd |  -1.647234   2.534068    -0.65   0.516    -6.613916    3.319449
+------------------------------------------------------------------------------
+
+. 
+. * Compare these results to the estimates you obtained with OLS.
+. /* The estimate given by the nonparametric approach is -1.65 (se=2.7, p=.541).
+> This is much smaller in absolute magnitude than the OLS estimate 
+> -4.3 (se=1.592, p=.007).*/
+. 
+. 
+. *** 4 ***
+. * Estimate the effect of class size on math scores using fuzzy RDD. 
+. ivregress 2sls avgmath (classize c.classize#c.diff_40=largeclass ///
+>         i.largeclass#c.diff_40) diff_40 tipuach, robust cluster(schlcode)
+
+Instrumental variables (2SLS) regression               Number of obs =     699
+                                                       Wald chi2(4)  =  224.43
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.2411
+                                                       Root MSE      =  9.0627
+
+                                     (Std. Err. adjusted for 464 clusters in schlcode)
+--------------------------------------------------------------------------------------
+                     |               Robust
+             avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+---------------------+----------------------------------------------------------------
+            classize |  -.3943339   .1908885    -2.07   0.039    -.7684685   -.0201993
+                     |
+c.classize#c.diff_40 |   .0216248   .0157218     1.38   0.169    -.0091894     .052439
+                     |
+             diff_40 |  -.4848161   .3962795    -1.22   0.221     -1.26151    .2918774
+             tipuach |  -.3566456   .0246086   -14.49   0.000    -.4048775   -.3084137
+               _cons |   81.46873   5.008428    16.27   0.000     71.65239    91.28507
+--------------------------------------------------------------------------------------
+Instrumented:  classize c.classize#c.diff_40
+Instruments:   diff_40 tipuach largeclass1 1.largeclass1#c.diff_40
+
+. /*-.394(se=.191, p=.039)*/
+. 
+. 
+. *** 5 ***
+. * Use -rdrobust- to estimate the effect of class size on math scores
+. * Sharp RD
+. rdrobust avgmath c_size, c(40) all  //1.806(se=5.055, p=.721)
+Mass points detected in the running variable.
+
+Sharp RD estimates using local polynomial regression.
+
+     Cutoff c = 40 | Left of c  Right of c            Number of obs =        699
+-------------------+----------------------            BW type       =      mserd
+     Number of obs |       223         476            Kernel        = Triangular
+Eff. Number of obs |        38         103            VCE method    =         NN
+    Order est. (p) |         1           1
+    Order bias (q) |         2           2
+       BW est. (h) |     4.236       4.236
+       BW bias (b) |     7.038       7.038
+         rho (h/b) |     0.602       0.602
+        Unique obs |        20          21
+
+Outcome: avgmath. Running variable: c_size.
+--------------------------------------------------------------------------------
+            Method |   Coef.    Std. Err.    z     P>|z|    [95% Conf. Interval]
+-------------------+------------------------------------------------------------
+      Conventional |  1.8059      5.055   0.3573   0.721   -8.10162      11.7134
+    Bias-corrected |   1.241      5.055   0.2455   0.806   -8.66657      11.1485
+            Robust |   1.241     6.6831   0.1857   0.853   -11.8576      14.3395
+--------------------------------------------------------------------------------
+Estimates adjusted for mass points in the running variable.
+
+. * Fuzzy RD
+. rdrobust avgmath c_size, c(40) fuzzy(classize) all //-.369(se=.634, p=.56)
+Mass points detected in the running variable.
+
+Fuzzy RD estimates using local polynomial regression.
+
+     Cutoff c = 40 | Left of c  Right of c            Number of obs =        699
+-------------------+----------------------            BW type       =      mserd
+     Number of obs |       223         476            Kernel        = Triangular
+Eff. Number of obs |        70         172            VCE method    =         NN
+    Order est. (p) |         1           1
+    Order bias (q) |         2           2
+       BW est. (h) |     7.124       7.124
+       BW bias (b) |    12.063      12.063
+         rho (h/b) |     0.591       0.591
+        Unique obs |        20          21
+
+First-stage estimates. Outcome: classize. Running variable: c_size.
+--------------------------------------------------------------------------------
+            Method |   Coef.    Std. Err.    z     P>|z|    [95% Conf. Interval]
+-------------------+------------------------------------------------------------
+      Conventional | -7.2726     3.2849   -2.2139  0.027   -13.7109     -.834241
+    Bias-corrected | -7.4786     3.2849   -2.2766  0.023   -13.9169     -1.04025
+            Robust | -7.4786     4.0408   -1.8507  0.064   -15.3985      .441317
+--------------------------------------------------------------------------------
+
+Treatment effect estimates. Outcome: avgmath. Running variable: c_size. Treatment Status: cl
+> assize.
+--------------------------------------------------------------------------------
+            Method |   Coef.    Std. Err.    z     P>|z|    [95% Conf. Interval]
+-------------------+------------------------------------------------------------
+      Conventional | -.36938      .6343   -0.5824  0.560   -1.61258      .873813
+    Bias-corrected | -.27038      .6343   -0.4263  0.670   -1.51357      .972819
+            Robust | -.27038     .76897   -0.3516  0.725   -1.77752      1.23677
+--------------------------------------------------------------------------------
+Estimates adjusted for mass points in the running variable.
+
+. 
+. 
+. *** 6 ***
+. clear 
+
+. use final5.dta
+
+. gen pclassize = c_size/(int((c_size - 1)/40) + 1)
+
+. 
+. label var pclassize "Predicted class size"
+
+. bysort c_size: egen avgclassize=mean(classize)
+
+. label var avgclassize "Average class size"
+
+. tw (line avgclassize c_size) (line pclassize c_size)
+
+. 
+. 
+. *** 7 ***
+. ivregress 2sls avgmath (classize=pclassize) c_size, robust cluster(schlcode)
+
+Instrumental variables (2SLS) regression               Number of obs =    2024
+                                                       Wald chi2(2)  =   71.18
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.0489
+                                                       Root MSE      =  9.7818
+
+                            (Std. Err. adjusted for 1003 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.0745205   .1101655    -0.68   0.499    -.2904409    .1413998
+      c_size |   .0694956   .0139596     4.98   0.000     .0421353    .0968559
+       _cons |   64.15484   2.455231    26.13   0.000     59.34268      68.967
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size pclassize
+
+. 
+. 
+. *** 8 ***
+. ivregress 2sls avgmath (classize=pclassize) c_size tipuach, robust cluster(schlcode)
+
+Instrumental variables (2SLS) regression               Number of obs =    2024
+                                                       Wald chi2(3)  =  373.04
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.2067
+                                                       Root MSE      =  8.9335
+
+                            (Std. Err. adjusted for 1003 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.2229847   .0997262    -2.24   0.025    -.4184446   -.0275249
+      c_size |    .042857   .0117609     3.64   0.000     .0198062    .0659079
+     tipuach |  -.3400931   .0211652   -16.07   0.000    -.3815761   -.2986101
+       _cons |   75.46579   2.435443    30.99   0.000     70.69241    80.23917
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size tipuach pclassize
+
+. est store e1
+
+. /* After controlling for the percentage of disadvantaged students, the estimated
+> coefficient on class size changes from -.075 (se=.11, p= .499) to
+> -.223 (se=.01, p=.025). It increases in absolute magnitude and becomes 
+> statistically significant, suggesting that it is better to condition the RDD on 
+> the percent of disadvantaged students.*/
+. 
+. 
+. *** 9 ***
+. hist c_size,  width(5) kdensity xline(40 80 120 160 200, lcol(red)) 
+(bin=45, start=5, width=5)
+
+. 
+. 
+. 
+. *** 10 ***
+. gen bin = autocode(c_size , 12, 0 , 240)
+
+. bysort bin: egen binclassize=mean(classize)
+
+. bysort bin: egen binmath=mean(avgmath)
+
+. label var binclassize "Average class size"
+
+. label var binmath "Average math score"
+
+. label var bin "Enrollment"
+
+. tw scatter binclassize bin, xtick(0(20)240) xlabel(0(20)240) name(plot1, replace)
+
+. tw scatter binmath bin, xtick(0(20)240) xlabel(0(20)240) name(plot2, replace)
+
+. graph combine plot1 plot2
+
+. 
+. 
+. *** 11 ***
+. gen c_sizesq=c_size^2
+
+. reg avgmath c_size c_sizesq
+
+      Source |       SS       df       MS              Number of obs =    2024
+-------------+------------------------------           F(  2,  2021) =   63.28
+       Model |  11999.4242     2  5999.71209           Prob > F      =  0.0000
+    Residual |  191625.424  2021   94.817132           R-squared     =  0.0589
+-------------+------------------------------           Adj R-squared =  0.0580
+       Total |  203624.848  2023  100.654893           Root MSE      =  9.7374
+
+------------------------------------------------------------------------------
+     avgmath |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+      c_size |   .1004776   .0192489     5.22   0.000     .0627279    .1382273
+    c_sizesq |  -.0002094   .0000994    -2.11   0.035    -.0004043   -.0000145
+       _cons |   61.09462   .8365742    73.03   0.000     59.45398    62.73526
+------------------------------------------------------------------------------
+
+. predict mathq
+(option xb assumed; fitted values)
+
+. reg classize c_size c_sizesq
+
+      Source |       SS       df       MS              Number of obs =    2029
+-------------+------------------------------           F(  2,  2026) =  847.71
+       Model |  40221.9955     2  20110.9977           Prob > F      =  0.0000
+    Residual |  48064.7418  2026  23.7239594           R-squared     =  0.4556
+-------------+------------------------------           Adj R-squared =  0.4550
+       Total |  88286.7373  2028  43.5338941           Root MSE      =  4.8707
+
+------------------------------------------------------------------------------
+    classize |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+      c_size |   .2564531   .0094876    27.03   0.000     .2378466    .2750597
+    c_sizesq |  -.0008163   .0000486   -16.79   0.000    -.0009116   -.0007209
+       _cons |   16.17897   .4149591    38.99   0.000     15.36518    16.99276
+------------------------------------------------------------------------------
+
+. predict classizeq
+(option xb assumed; fitted values)
+
+. tw (lfit classize c_size) (line classizeq c_size) (scatter binclassize bin), ///
+>         xtick(0(20)240) xlabel(0(20)240) ///
+>         xtitle("Enrollment") ytitle("Class size") ///
+>         legend(lab(1 "Linear") lab(2 "Quadratic")) name(plot3, replace)
+
+. tw (lfit avgmath c_size) (line mathq c_size) (scatter binmath bin), ///
+>         xtick(0(20)240) xlabel(0(20)240) ///
+>         xtitle("Enrollment") ytitle("Math scores") ///
+>         legend(lab(1 "Linear") lab(2 "Quadratic")) name(plot4, replace)
+
+. graph combine plot3 plot4
+
+. /*The polynomial approximation captures the non-linearities well*/
+. 
+. 
+. *** 12 ***
+. * (1) check sensitivity to bandwidths
+. gen byte discont1= (c_size>=36 & c_size<=45) | (c_size>=76 & c_size<=85) | ///
+>         (c_size>=116 & c_size<=125) | (c_size>=156 & c_size<=165) | ///
+>         (c_size>=196 & c_size<=205) | (c_size>=236 & c_size<=245) 
+
+. gen byte discont2= (c_size>=38 & c_size<=43) | (c_size>=78 & c_size<=83) | ///
+>         (c_size>=118 & c_size<=123) | (c_size>=158 & c_size<=163) | ///
+>         (c_size>=198 & c_size<=203) | (c_size>=238 & c_size<=243) 
+
+. ivregress 2sls avgmath (classize=pclassize) c_size tipuach if discont1==1, ///
+>         robust cluster(schlcode)  //+-5 discontinuity sample
+
+Instrumental variables (2SLS) regression               Number of obs =     497
+                                                       Wald chi2(3)  =  131.50
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.2384
+                                                       Root MSE      =   8.953
+
+                             (Std. Err. adjusted for 230 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.4398533   .2361556    -1.86   0.063    -.9027097    .0230031
+      c_size |   .0894033   .0283604     3.15   0.002     .0338179    .1449887
+     tipuach |  -.4311985   .0503743    -8.56   0.000    -.5299303   -.3324667
+       _cons |   79.77164   5.805295    13.74   0.000     68.39347    91.14981
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size tipuach pclassize
+
+. est store d1
+
+. ivregress 2sls avgmath (classize=pclassize) c_size tipuach if discont2==1, ///
+>         robust cluster(schlcode)  //+-3
+
+Instrumental variables (2SLS) regression               Number of obs =     324
+                                                       Wald chi2(3)  =  120.64
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.3283
+                                                       Root MSE      =  8.7308
+
+                             (Std. Err. adjusted for 150 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.2861395   .2470636    -1.16   0.247    -.7703753    .1980962
+      c_size |   .0800923   .0280016     2.86   0.004     .0252101    .1349746
+     tipuach |  -.4198589   .0559278    -7.51   0.000    -.5294753   -.3102424
+       _cons |    75.7674   6.302244    12.02   0.000     63.41523    88.11957
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size tipuach pclassize
+
+. est store d2
+
+. esttab d1 d2 using Check1.rtf, b(3) se(3) star(* 0.05 ** 0.01 *** 0.001) nogaps replace 
+(output written to Check1.rtf)
+
+. 
+. * (2) check sensitivity to control for enrollment
+. gen c_sizecube=c_size^3
+
+. ivregress 2sls avgmath (classize=pclassize) c_size tipuach c_sizesq, robust cluster(schlco
+> de)  
+
+Instrumental variables (2SLS) regression               Number of obs =    2024
+                                                       Wald chi2(4)  =  371.13
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.2003
+                                                       Root MSE      =  8.9693
+
+                            (Std. Err. adjusted for 1003 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.2767483   .1251033    -2.21   0.027    -.5219462   -.0315504
+      c_size |   .0786592   .0377011     2.09   0.037     .0047663    .1525521
+     tipuach |  -.3401139     .02122   -16.03   0.000    -.3817043   -.2985236
+    c_sizesq |  -.0001627   .0001467    -1.11   0.267    -.0004501    .0001248
+       _cons |   75.52143   2.460873    30.69   0.000      70.6982    80.34465
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size tipuach c_sizesq pclassize
+
+. est store e2
+
+. ivregress 2sls avgmath (classize=pclassize) c_size tipuach c_sizesq c_sizecube, robust clu
+> ster(schlcode)  
+
+Instrumental variables (2SLS) regression               Number of obs =    2024
+                                                       Wald chi2(5)  =  373.42
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.1986
+                                                       Root MSE      =  8.9792
+
+                            (Std. Err. adjusted for 1003 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     avgmath |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |  -.2903684   .1300926    -2.23   0.026    -.5453452   -.0353916
+      c_size |   .1144452   .0713866     1.60   0.109    -.0254699    .2543603
+     tipuach |  -.3415599   .0213375   -16.01   0.000    -.3833806   -.2997392
+    c_sizesq |  -.0005491   .0006161    -0.89   0.373    -.0017566    .0006585
+  c_sizecube |   1.21e-06   1.73e-06     0.70   0.484    -2.18e-06    4.60e-06
+       _cons |    75.0368   2.503963    29.97   0.000     70.12912    79.94448
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size tipuach c_sizesq c_sizecube pclassize
+
+. est store e3
+
+. esttab e1 e2 e3 using Check2.rtf, b(3) se(3) star(* 0.05 ** 0.01 *** 0.001) nogaps replace
+>  
+(output written to Check2.rtf)
+
+. 
+. 
+. *** 13 ***
+. ivregress 2sls tipuach (classize=pclassize) c_size c_sizesq, robust cluster(schlcode)  
+
+Instrumental variables (2SLS) regression               Number of obs =    2029
+                                                       Wald chi2(3)  =  213.47
+                                                       Prob > chi2   =  0.0000
+                                                       R-squared     =  0.1573
+                                                       Root MSE      =  12.376
+
+                            (Std. Err. adjusted for 1004 clusters in schlcode)
+------------------------------------------------------------------------------
+             |               Robust
+     tipuach |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+    classize |   -.228656   .1763514    -1.30   0.195    -.5742984    .1169863
+      c_size |   -.212436   .0503129    -4.22   0.000    -.3110474   -.1138245
+    c_sizesq |   .0006108    .000184     3.32   0.001     .0002502    .0009713
+       _cons |   32.84773   3.536213     9.29   0.000     25.91688    39.77858
+------------------------------------------------------------------------------
+Instrumented:  classize
+Instruments:   c_size c_sizesq pclassize
+
+. 
+. 
+. log close
+      name:  <unnamed>
+       log:  /Users/Rose-colored/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/ps4.
+> log
+  log type:  text
+ closed on:  30 Apr 2020, 12:04:31
+--------------------------------------------------------------------------------------------
