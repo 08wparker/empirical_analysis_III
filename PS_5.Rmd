@@ -142,3 +142,11 @@ We can also add covariates and estimate
 ```{r}
 DID2<-lm(empft~state*post+nregs+hrsopen+d2+d3+d4,data=data); summary(DID2)
 ```
+
+# 13. How much does this suggest that the minimum wage affects full time employment in fast food restaurants?
+```{r}
+DID_est<-coef(DID1)[4]
+names(DID_est)<-NULL
+DID_est/(5.05-4.25)
+```
+The DID estimate is $3.3749$. Dividing this by $\Delta minwage$, we obtain $4.219$, meaning that increasing minimum wage by 1 dollar will increase the number of employees in fast food restaurants by 4.
