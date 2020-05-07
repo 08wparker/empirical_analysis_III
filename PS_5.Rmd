@@ -41,7 +41,7 @@ $i$ denotes restaurant, $k$ denotes state, and $t = 0$ if the observation is fro
 ```{r, results='asis'}
 # drop missing observations
 for_regression <- data %>%
-  select(empft, minwage,nregs, hrsopen, d2, d3, d4) %>%
+  select(state, post, empft, minwage,nregs, hrsopen, d2, d3, d4) %>%
   na.omit()
 
 regress_formula <- formula(empft ~ minwage + nregs + hrsopen + d2 + d3 + d4)
@@ -107,3 +107,24 @@ car::linearHypothesis(linear_model, c("d2 = d3"))
 
 # 8. Explain why the previous estimate of $\lambda$ is likely to suffer from omitted variable bias.
 
+
+
+# 9. Assume that $\epsilon_{ikt} = \mu_{k} + \zeta_{t} + u_{ikt}$ and that $E[u_{ikt} |X_{ikt}] = 0$ (where X_{ikt} is the vector of RHS-variables in (2) except -minwage-). Explain how you can then use the increase in the minimum wage in New Jersey and a difference-in-differences (DD) model to identify the effect of the minimum wage on employment. Give an example where the necessary assumption(s) are violated.
+
+
+# 10. Generate a table of means, a table of standard errors and a table of frequencies for -empft-
+in each state and each time period (post = 1 and post = 0).
+
+```{r}
+for_regression %>%
+  group_by(state, post) %>%
+  summarise(mean_empft = mean(empft),
+            sd_empft = sd(empft),
+            n = n()) %>%
+  mutate(stand_error = sd_empft/sqrt(n)) %>%
+  select(state, post, mean_empft, stand_error, n) %>%
+  kable()
+```
+
+# 11. Using these statistics, calculate a DD estimate of the impact of the minimum wage law on
+employment.
