@@ -1,20 +1,27 @@
-log using "~/Desktop/UChicago/Empirical\ Analysis/EA\ III/part\ A/ps/ps4/ps4.log", replace
+log using "~/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/ps4.log", replace
 
 *****************************
 ******* Problem Set 4 *******
 *****************************
+**Futing Chen, Hongfan Chen, Will Parker **
 
-clear
+
+clear all
 set more off
 cd "~/Desktop/UChicago/Empirical_Analysis/EAIII/partA/ps/ps4/data"
 use final5.dta
+
+
+replace avgmath= avgmath-100 if avgmath>100
+replace avgmath=. if mathsize==0
+
 
 *** 1 ***
 reg avgmath classize, robust cluster(schlcode)              
 reg avgmath classize tipuach c_size, robust cluster(schlcode)
 
 /* Interpretation:
-The estimated coefficient of classize drops from .324 (p=.000) to .023 (p=.592).
+The estimated coefficient of classize drops from .317 (p=.000) to .017 (p=.686).
 This result suggests that (1) the percentage of disadvantaged students and 
 enrollment are important explanatory variables and (2) omitting them will lead 
 to bias in the estimated class size effect. For example, because disadvantaged
@@ -51,10 +58,10 @@ program rd, rclass
 	return scalar rd = `L' - `R' in 1
 end
 
-bootstrap rd=r(rd), rep(100) seed(123) nowarn: rd  // bootstrap se= 2.696
+bootstrap rd=r(rd), rep(100) seed(123) nowarn: rd  // bootstrap se= 2.534
 
 * Compare these results to the estimates you obtained with OLS.
-/* The estimate given by the nonparametric approach is -1.65 (se=2.7, p=.541).
+/* The estimate given by the nonparametric approach is -1.647 (se=2.534, p=.516).
 This is much smaller in absolute magnitude than the OLS estimate 
 -4.3 (se=1.592, p=.007).*/
 
@@ -72,6 +79,7 @@ ivregress 2sls avgmath (classize c.classize#c.diff_40=largeclass ///
 rdrobust avgmath c_size, c(40) all  //1.806(se=5.055, p=.721)
 * Fuzzy RD
 rdrobust avgmath c_size, c(40) fuzzy(classize) all //-.369(se=.634, p=.56)
+
 
 
 *** 6 ***
@@ -94,14 +102,15 @@ ivregress 2sls avgmath (classize=pclassize) c_size tipuach, robust cluster(schlc
 est store e1
 /* After controlling for the percentage of disadvantaged students, the estimated
 coefficient on class size changes from -.075 (se=.11, p= .499) to
--.223 (se=.01, p=.025). It increases in absolute magnitude and becomes 
+-.223 (se=.1, p=.025). It increases in absolute magnitude and becomes 
 statistically significant, suggesting that it is better to condition the RDD on 
 the percent of disadvantaged students.*/
 
 
 *** 9 ***
 hist c_size,  width(5) kdensity xline(40 80 120 160 200, lcol(red)) 
-
+/* There is a jump at 40, suggesting that there may be sorting into 
+schools that split students into smaller classes.*/
 
 
 *** 10 ***
@@ -111,9 +120,9 @@ bysort bin: egen binmath=mean(avgmath)
 label var binclassize "Average class size"
 label var binmath "Average math score"
 label var bin "Enrollment"
-tw scatter binclassize bin, xtick(0(20)240) xlabel(0(20)240) name(plot1, replace)
-tw scatter binmath bin, xtick(0(20)240) xlabel(0(20)240) name(plot2, replace)
-graph combine plot1 plot2
+
+tw (conn binclassize bin) (conn binmath bin, yaxis(2)), xtick(0(20)240) xlabel(0(20)240) 
+
 
 
 *** 11 ***
@@ -132,6 +141,7 @@ tw (lfit avgmath c_size) (line mathq c_size) (scatter binmath bin), ///
 	legend(lab(1 "Linear") lab(2 "Quadratic")) name(plot4, replace)
 graph combine plot3 plot4
 /*The polynomial approximation captures the non-linearities well*/
+
 
 
 *** 12 ***
