@@ -1,0 +1,109 @@
+---
+title: 'ECON312 Problem Set 5'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(tidyverse)
+library(knitr)
+library(haven)
+```
+
+
+# 1. Describe the data
+```{r}
+data <- read_dta("PS5.dta")
+
+psych::describe(data) %>% 
+  select(n, mean, sd, median, min, max) %>%
+  kable(digits = 2)
+```
+
+# 2. Estimate the following regression on the sample of fast food restaurants in Feb-Mar 1992:
+
+$$empft_{ikt} = \alpha + \gamma minwage_{kt} + \beta_1 nregs_{ikt} + \beta_2 hrsopen_{ikt} + \sum_{j=2}^4 \eta_j d_j + \epsilon_{ikt}$$
+$i$ denotes restaurant, $k$ denotes state, and $t = 0$ if the observation is from Feb-Mar and $t = 1$ if the observation is from Nov-Dec.
+
+```{r, results='asis'}
+# drop missing observations
+for_regression <- data %>%
+  select(empft, minwage,nregs, hrsopen, d2, d3, d4) %>%
+  na.omit()
+
+regress_formula <- formula(empft ~ minwage + nregs + hrsopen + d2 + d3 + d4)
+
+linear_model <- lm(regress_formula, data = for_regression)
+
+stargazer::stargazer(linear_model, header = FALSE)
+```
+
+# 3. Interpret the coefficient $\gamma$ and calculate a 90% confidence interval.
+
+$\gamma =$ `r round(linear_model$coefficients['minwage'], 2) %>% as.numeric()` is the average change in number of full time employees for a \$1 increase in the minimum wage, adjusted for the other variables in the regression. The 90% CI is
+```{r}
+confint.lm(linear_model, level = 0.9)[2,]
+```
+
+# 4.Use the Sum of squares table from the regression output to calculate the $R^2$ and the standard error of the regression (Root MSE).
+
+```{r}
+SSE <- sum(linear_model$residuals^2)
+SST <- var(for_regression$empft)*(for_regression %>% nrow() -1)
+SSR <- SST - SSE
+
+R2 <- SSR/SST
+root_MSE <- sqrt(SSE/(for_regression %>% nrow()))
+```
+
+The $R^2 =$ `r round(R2, 2)` and the $MSE =$ `r round(root_MSE, 1)`
+
+# 5. Give an economic interpretation of the coefficients $\eta_2, \eta_3, \eta_4$. What might explain the relatively large coefficient on -d4-?
+
+These are fixed effects for each restaurant, specifically the average difference in number of employees relative to burger king. d-1 The large coefficient $\eta_4$ means that Wendy's employed `r round(linear_model$coefficients['d4'], 2) %>% as.numeric()` more people on average than Burger King, adjusted for the other variables in the regression.
+
+# 6. Test $H0: \eta_2 = \eta_3 = 0$
+```{r}
+car::linearHypothesis(linear_model, c("d2 = 0", "d3 = 0"))
+```
+We can reject the hypothesis $\eta_2 = \eta_3 = 0$ at a significane level of $\alpha = 0.5$
+
+# 7. Test the hypothesis $H_0 : \eta_2 = \eta_3$ using the estimated covariance matrix of the coefficients. Verify your answer by running the test in Stata using and/or by performing an F-test. We now want to control for potential selection issues by using the panel structure of our data.
+
+```{r}
+
+
+cov_matrix <- vcov(linear_model)
+
+beta <- linear_model$coefficients
+
+R <- c(0,0,0, 0, 1, -1, 0)
+
+n_sample <- for_regression %>% nrow()
+
+t(R)%*%beta
+```
+
+```{r}
+T_n <- n_sample*(R%*%beta)%*%solve(t(R)%*%cov_matrix%*%R)%*%t(R%*%beta)
+```
+
+```{r}
+car::linearHypothesis(linear_model, c("d2 = d3"))
+```
+
+# 8. Explain why the previous estimate of $\lambda$ is likely to suffer from omitted variable bias.
+
