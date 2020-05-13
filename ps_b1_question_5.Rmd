@@ -1,0 +1,141 @@
+---
+title: 'ECON312 Problem Set 1B: question 5'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(tidyverse)
+library(knitr)
+
+library(readxl)
+```
+
+
+Load in data
+```{r}
+sheets <- excel_sheets("PS1_Q5_Data.xlsx")
+
+
+dataset_list <- list()
+
+for (s in seq(1:length(sheets))) {
+  dataset_list[[s]] <- readxl::read_excel("PS1_Q5_Data.xlsx", sheet = s) %>%
+    mutate(dataset_num = s) %>%
+    select(Y, X1, X2, dataset_num)
+}
+
+dataset_list[[19]]
+```
+
+
+
+# A: Pre-test estimator
+```{r}
+beta_1_star <- function(df){
+  
+  m_1 <- lm(data = df, formula = formula(Y ~ X1 + X2))
+  
+  beta_1_star <- m_1$coefficients[["X1"]]
+  
+  
+  if (is.na(m_1$coefficients[["X2"]]) == FALSE){
+    t_beta_2 <- summary(m_1)$coefficients[["X2", "t value"]]
+  } else { t_beta_2 <- 0}
+  
+  
+  m_2 <- lm(data = df, formula = formula(Y ~ X1))
+  
+  beta_1_tilda <- m_2$coefficients[["X1"]]
+  
+  if (t_beta_2 < 1.964) {
+    return(beta_1_tilda)
+  }  else {
+    return(beta_1_star)
+  }
+}
+```
+
+
+## Test that function is working
+```{r}
+summary(lm("Y~ X1 + X2", dataset_list[[19]]))
+```
+
+
+```{r}
+summary(lm("Y~ X1", dataset_list[[19]]))
+```
+
+```{r}
+beta_1_star(dataset_list[[19]])
+```
+
+
+```{r}
+beta_1_list <- lapply(dataset_list, beta_1_star)
+
+
+tibble(beta_1_star = unlist(beta_1_list)) %>%
+  ggplot(aes(x  = beta_1_star)) +
+  geom_histogram()
+```
+
+## Estimate parameters for each sample
+```{r}
+
+sample_params <- function(df){
+  mu_1 <- mean(df$X1)
+  mu_2 <- mean(df$X2)
+  
+  var_x1 <- var(df$X1)
+  var_x2 <- var(df$X2)
+  rho <- cov(df$X1, df$X2)/sqrt(var_x1*var_x2)
+  
+  m_1 <- lm(Y ~ X1 + X2, data = df)
+  
+  mse <- mean(m_1$residuals^2)
+  
+  return(tibble(mu_1,
+         mu_2,
+         var_x1,
+         var_x2,
+         rho,
+         mse))
+}
+
+
+estimated_params <- tibble(sample_number = numeric(),
+                           mu_1 = numeric(),
+                           mu_2 = numeric(),
+                           var_x1 = numeric(),
+                           var_x2 = numeric(),
+                           rho = numeric(),
+                           mse = numeric()
+)
+
+for (i in seq(1:72)){
+  estimated_params <- estimated_params %>%
+    rbind(sample_params(dataset_list[[i]]) %>%
+            mutate(sample_number = i))
+}
+```
+
+```{r}
+estimated_params
+```
+
+
