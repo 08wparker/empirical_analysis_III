@@ -1,4 +1,8 @@
 ---
+output:
+  pdf_document: default
+  html_document: default
+---
 title: 'ECON312 Problem Set 5'
 author: Futing Chen, Hongfan Chen, Will Parker
 date: "`r format(Sys.time(), '%m/%d/%Y')`"
@@ -42,7 +46,6 @@ $i$ denotes restaurant, $k$ denotes state, and $t = 0$ if the observation is fro
 for_regression <- data %>%
   select(state, post, empft, minwage,nregs, hrsopen, d2, d3, d4) %>%
   na.omit()
-
 regress_formula <- formula(empft ~ minwage + nregs + hrsopen + d2 + d3 + d4)
 linear_model <- lm(regress_formula, data = for_regression)
 summary(linear_model)
@@ -92,10 +95,7 @@ Where $df = 1$ here because there is one linear restriction.
 cov_matrix <- vcov(linear_model)
 beta <- linear_model$coefficients
 R <- c(0,0,0, 0, 1, -1, 0)
-
 T_n <- (R%*%beta)%*%solve(t(R)%*%cov_matrix%*%R)%*%t(R%*%beta)
-
-
 T_n
 ```
 
@@ -136,58 +136,45 @@ The necessary assumption is common trend in the absence of intervation:
 This would be  violated if, for example, the employment of one state (say, New Jersey) benefited more from progressive federal policies than Pennsylvania.
 
 # 10. Generate a table of means, a table of standard errors and a table of frequencies for -empft- in each state and each time period (post = 1 and post = 0).
-
 ```{r}
-table <- for_regression %>%
+table <- filter(data,!is.na(empft)) %>%
   group_by(state, post) %>%
   summarise(mean_empft = mean(empft),
             sd_empft = sd(empft),
             n = n()) %>%
   mutate(stand_error = sd_empft/sqrt(n)) %>%
   select(state, post, mean_empft, stand_error, n) 
-
 table %>%
-  kable(digits = 2)
+  kable(digits = 4)
 ```
 
 So average employment in fast-food dropped in Pennyslavania while it increased in New Jersey. There are also more restaurants in the New Jersey sample.
 
 # 11. Using these statistics, calculate a DID estimate of the impact of the minimum wage law on employment.
-
 ```{r}
-diff_new_jersey <- filter(table, post == 1 & state == 1)$mean_empft - filter(table, post == 0 & state == 1)$mean_empft
-
-diff_penn <- filter(table, post == 1 & state == 0)$mean_empft - filter(table, post == 0 & state == 0)$mean_empft
-
-diff_new_jersey - diff_penn
+(8.4469-7.7323)-(7.6513-10.3117)
 ```
-
 # 12. Specify and estimate the corresponding regression.
 The regression corresponding to (11) is 
 \[empft_{ikt}=\pi_0+\delta state_{k}*post_t+\pi_1state_{k}+\pi_2post_t+v_{ikt}\]
 ```{r}
-DID1<-lm(empft~state*post,data=for_regression); summary(DID1)
+DID1<-lm(empft~state*post,data=data); summary(DID1)
 ```
-
 We can also add covariates and estimate
 ```{r}
-DID2<-lm(empft~state*post+nregs+hrsopen+d2+d3+d4,data=for_regression); summary(DID2)
+DID2<-lm(empft~state*post+nregs+hrsopen+d2+d3+d4,data=data); summary(DID2)
 ```
-
 # 13. How much does this suggest that the minimum wage affects full time employment in fast food restaurants?
 ```{r}
 DID_est<-coef(DID1)[4]
 names(DID_est)<-NULL
-
 employment_effect <- DID_est/(5.05-4.25)
-
 ```
 The DID estimate is `r round(DID_est, 2)`. Dividing this by $\Delta minwage$, we obtain `r round(employment_effect, 1)`, meaning that increasing minimum wage by 1 dollar will increase the number of employees in fast food restaurants more than 4.
-
 Alternatively, we could include the minimum wage variable directly in the regression
 ```{r}
 did_alt <- formula(empft ~ minwage + post + post*minwage + nregs + hrsopen + d2 + d3 + d4) 
-
 DID_alt_model <- lm(did_alt, for_regression); summary(DID_alt_model)
 ```
+# 14. Explain why the t-test from the regression above may understate the uncertainty in the effect of the minimum wage on full time employment. How could you correct the standard error? Compare the t-values with and without this correction.
 
