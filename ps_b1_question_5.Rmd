@@ -37,19 +37,19 @@ for (s in seq(1:length(sheets))) {
     mutate(dataset_num = s) %>%
     select(Y, X1, X2, dataset_num)
 }
-
-dataset_list[[19]]
 ```
 
 
 
 # A: Pre-test estimator
 ```{r}
-beta_1_star <- function(df){
+
+df <- dataset_list[[1]]
+sample_params <- function(df){
   
   m_1 <- lm(data = df, formula = formula(Y ~ X1 + X2))
   
-  beta_1_star <- m_1$coefficients[["X1"]]
+  beta_1_hat <- m_1$coefficients[["X1"]]
   
   
   if (is.na(m_1$coefficients[["X2"]]) == FALSE){
@@ -60,13 +60,48 @@ beta_1_star <- function(df){
   m_2 <- lm(data = df, formula = formula(Y ~ X1))
   
   beta_1_tilda <- m_2$coefficients[["X1"]]
+
   
-  if (t_beta_2 < 1.964) {
-    return(beta_1_tilda)
+  if (abs(t_beta_2) < 1.964) {
+    beta_1_star <- beta_1_hat
   }  else {
-    return(beta_1_star)
+    beta_1_star <- beta_1_tilda
   }
+  
+  dataset_num <- filter(df, row_number() ==1)$dataset_num
+  
+  mu_1 <- mean(df$X1)
+  mu_2 <- mean(df$X2)
+  
+  sigma2_1 <- var(df$X1)
+  sigma2_2 <- var(df$X2)
+  rho <- cov(df$X1, df$X2)/sqrt(sigma2_1*sigma2_2)
+  
+  m_1 <- lm(Y ~ X1 + X2, data = df)
+  
+  sigma2_epsilon <- mean(m_1$residuals^2)
+  
+  # Q_xx <- matrix(nrow =2, c(sigma2_1, sqrt(sigma2_1*sigma2_2)*rho, sqrt(sigma2_1*sigma2_2)*rho, sigma2_2))
+  # 
+  # n <- df %>% nrow()
+  # 
+  # std_err_beta_1_hat <- sqrt(sigma2_epsilon*solve(Q_xx)[[1,1]]/n)
+  
+  output <- tibble(dataset_num, 
+                   mu_1,
+                   mu_2,
+                   sigma2_1,
+                   sigma2_2,
+                   rho,
+                   sigma2_epsilon,
+                   t_beta_2,
+                   beta_1_star) %>% 
+    mutate(empiric_bias = beta_1_star -1)
+  
+  return(output)
 }
+
+
 ```
 
 
@@ -81,61 +116,84 @@ summary(lm("Y~ X1", dataset_list[[19]]))
 ```
 
 ```{r}
-beta_1_star(dataset_list[[19]])
+sample_params(dataset_list[[19]])
 ```
 
 
 ```{r}
-beta_1_list <- lapply(dataset_list, beta_1_star)
+results <- map_dfr(dataset_list, sample_params)
+
+results %>%
+  kable(col.names = c("Dataset", "$\\mu_1$", "$\\mu_2$", "$\\sigma^2_1$", "$\\sigma_2^2$", "$\\rho$", "$\\sigma_{e}^2$", "$t_{\\beta_2}$", "$\\beta_1*$", "empiric bias"), digits = 2)
+```
 
 
-tibble(beta_1_star = unlist(beta_1_list)) %>%
+
+## Distribution of $\beta_1^*$ across the 72 samples
+```{r}
+results %>%
   ggplot(aes(x  = beta_1_star)) +
   geom_histogram()
 ```
 
-## Estimate parameters for each sample
+
+`
+
+## Sampling distribution for the pre-test estimator
+
+If $|t|_{\hat{\beta_2}} > 1.96$, then $\beta_1^*$ has the typical OLS asymptomic variance, i.e. for $\hat{\beta} = (\hat{\beta}_1, \hat{\beta}_2)$
+
+$$\sqrt{n}(\hat{\beta}_n - \beta) \overset{d}{\to} N(0, \sigma^2_{\epsilon}*E[X'X]^{-1}) $$
+
+In terms of the model parameters, we can write
+
+$$E[X'X] = (\begin{matrix}
+ \sigma_1^2 & \rho \sigma_1 \sigma_2 \\ \rho \sigma_1 \sigma_2 & \sigma_2^2
+\end{matrix})$$
+
+And calculate the limiting distribution in this case
+
+If $|t|_{\hat{\beta_2}} \leq 1.96$, then the variance is more complex
+
+...
+
+
+
+
+# B
+
+## Analytic Bias of $\beta_1^*$
+
+If $|t|_{\hat{\beta_2}} > 1.96$, then $\beta_1^* = \hat{\beta}_1$ which is unbiased, i.e.
+
+$$E[\hat{\beta}_1] = \beta_1$$
+
+If $|t|_{\hat{\beta_2}} \leq 1.96$, then $\beta_1^* = \tilde{\beta}_1$ which has the standard missing variable bias
+
+$$E[\tilde{\beta}_1] = \beta_1 + \beta_2\frac{Cov(X_1,X_2)}{Var(X_1)}$$
+based on the data geneterating process we know
+
+$$ Cov(X_1,X_2)= \rho\sigma_1 \sigma_2$$
+$$Var(X_1) = \sigma_1^2$$
+
+So by solving we have the bias
+
+$$E[\tilde{\beta}_1] = \beta_1 + \beta_2\frac{\rho \sigma_2}{\sigma_1}$$
+
+So then the $E[\beta_1^*]$
+
+$$E[\beta_1^*]= P(|t|_{\hat{\beta_2}} > 1.96)*\beta_1 + P(|t|_{\hat{\beta_2}} \leq 1.96)*(\beta_1 + \beta_2\frac{\rho \sigma_2}{\sigma_1})$$
+
+...plug in for P(t>1.96)...
+
+
+## Relationship of parameters to observed bias
 ```{r}
 
-sample_params <- function(df){
-  mu_1 <- mean(df$X1)
-  mu_2 <- mean(df$X2)
-  
-  var_x1 <- var(df$X1)
-  var_x2 <- var(df$X2)
-  rho <- cov(df$X1, df$X2)/sqrt(var_x1*var_x2)
-  
-  m_1 <- lm(Y ~ X1 + X2, data = df)
-  
-  mse <- mean(m_1$residuals^2)
-  
-  return(tibble(mu_1,
-         mu_2,
-         var_x1,
-         var_x2,
-         rho,
-         mse))
-}
-
-
-estimated_params <- tibble(sample_number = numeric(),
-                           mu_1 = numeric(),
-                           mu_2 = numeric(),
-                           var_x1 = numeric(),
-                           var_x2 = numeric(),
-                           rho = numeric(),
-                           mse = numeric()
-)
-
-for (i in seq(1:72)){
-  estimated_params <- estimated_params %>%
-    rbind(sample_params(dataset_list[[i]]) %>%
-            mutate(sample_number = i))
-}
-```
-
-```{r}
-estimated_params
+results %>%
+  ggplot(aes(x = rho, y = sigma2_2/sigma2_1,  color = abs(empiric_bias))) + 
+  geom_point() + labs(x = "p", y = "var(X2)/var(X1)", color = "|observed bias in beta1|") +
+  scale_color_distiller(palette = )
 ```
 
 
