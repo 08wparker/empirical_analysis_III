@@ -43,8 +43,6 @@ for (s in seq(1:length(sheets))) {
 
 # A: Pre-test estimator
 ```{r}
-
-df <- dataset_list[[1]]
 sample_params <- function(df){
   
   
@@ -76,15 +74,18 @@ sample_params <- function(df){
   beta_1_tilda <- m_2$coefficients[["X1"]]
 
   
-  if (abs(t_beta_2) < 1.964) {
+  if (abs(t_beta_2) > 1.964) {
     beta_1_star <- beta_1_hat
     
     Q_xx <- matrix(nrow =2, c(sigma2_1, sqrt(sigma2_1*sigma2_2)*rho, sqrt(sigma2_1*sigma2_2)*rho, sigma2_2))
       
     std_err_beta_1_star <- sqrt(sigma2_epsilon*solve(Q_xx)[[1,1]]/n)
+    
+    analytic_bias <- 0
   }  else {
     beta_1_star <- beta_1_tilda
     
+    analytic_bias <- (1)*(rho*sqrt(sigma2_2/sigma2_1))
     #std_err_beta_1_star <-
   }
   
@@ -98,7 +99,10 @@ sample_params <- function(df){
                    rho,
                    sigma2_epsilon,
                    t_beta_2,
-                   beta_1_star) %>% 
+                   beta_1_hat,
+                   beta_1_tilda,
+                   beta_1_star,
+                   analytic_bias) %>% 
     mutate(empiric_bias = beta_1_star -1)
   
   return(output)
@@ -110,16 +114,16 @@ sample_params <- function(df){
 
 ## Test that function is working
 ```{r}
-summary(lm("Y~ X1 + X2", dataset_list[[19]]))
+summary(lm("Y~ X1 + X2", dataset_list[[2]]))
 ```
 
 
 ```{r}
-summary(lm("Y~ X1", dataset_list[[19]]))
+summary(lm("Y~ X1", dataset_list[[2]]))
 ```
 
 ```{r}
-sample_params(dataset_list[[19]])
+sample_params(dataset_list[[2]])
 ```
 
 
@@ -127,7 +131,7 @@ sample_params(dataset_list[[19]])
 results <- map_dfr(dataset_list, sample_params)
 
 results %>%
-  kable(col.names = c("Dataset", "$\\mu_1$", "$\\mu_2$", "$\\sigma^2_1$", "$\\sigma_2^2$", "$\\rho$", "$\\sigma_{e}^2$", "$t_{\\beta_2}$", "$\\beta_1*$", "empiric bias"), digits = 2)
+  kable(col.names = c("Dataset", "$\\mu_1$", "$\\mu_2$", "$\\sigma^2_1$", "$\\sigma_2^2$", "$\\rho$", "$\\sigma_{e}^2$", "$t_{\\beta_2}$", "$\\hat{\\beta}_1$", "$\\tilde{\\beta}_1$", "$\\beta_1*$", "analytic bias", "empiric bias"), digits = 2)
 ```
 
 
@@ -140,7 +144,6 @@ results %>%
 ```
 
 
-`
 
 ## Sampling distribution for the pre-test estimator
 
@@ -190,7 +193,52 @@ $$E[\beta_1^*]= P(|t|_{\hat{\beta_2}} > 1.96)*\beta_1 + P(|t|_{\hat{\beta_2}} \l
 ...plug in for P(t>1.96)...
 
 
+## Parameter distribution in the datasets
+```{r}
+results %>%
+  ggplot(aes(x = rho)) +
+  geom_histogram()
+```
+
+```{r}
+results %>%
+  ggplot(aes(x = sigma2_epsilon)) +
+  geom_histogram()
+```
+
+
+```{r}
+results %>%
+  ggplot(aes(x = sigma2_1)) +
+  geom_histogram()
+```
+
+```{r}
+results %>%
+  ggplot(aes(x = sigma2_2)) +
+  geom_histogram()
+```
+
 ## Relationship of parameters to observed bias
+
+
+
+```{r}
+results %>%
+  ggplot(aes(x = sigma2_epsilon, y = abs(empiric_bias))) + 
+  geom_point() + labs(x = "sigma2_epsilon", y = "|bias|") 
+```
+
+
+## fixing $\rho = 1$ and estimating bias as a function of $\sigma^2_{epsilon}$
+```{r}
+results %>%
+  filter(rho ==1) %>% 
+  ggplot(aes(x = sigma2_epsilon, y = abs(empiric_bias))) + 
+  geom_point() + labs(x = "sigma2_epsilon", y = "|bias|") 
+```
+
+
 ```{r}
 
 results %>%
@@ -200,3 +248,20 @@ results %>%
 ```
 
 
+# C
+
+A bayesian would assume a prior distribution for $\theta = (\beta_0, \beta_1, \beta_2)$, e.g.
+
+$$P(\theta) = N(0, \Sigma)$$
+
+Then compute the posterior distribution of $P(\theta|(\textbf{X}, \textbf{Y}))$ via bayes formula
+
+$$P(\theta|(\textbf{X}, \textbf{Y})) = \frac{1}{Z}f(\theta|(\textbf{X}, \textbf{Y}))*P(\theta)$$
+
+Where 
+
+$$ Z = \int_X \int_Y f(\theta|(\textbf{X}, \textbf{Y})) dY dX $$
+
+Then the Bayesian could do testing of any specific hypothesis on $\beta_1$ or $\beta_2$ with corresponding posterior marginal probability distribution, e.g. for the hypothesis that $\beta_1$ is greater than 1
+
+$$P(\beta_1 > 1) = \int_1^{\infty} P(\beta_1|(\textbf{X}, \textbf{Y})) dX_1 $$
