@@ -47,7 +47,21 @@ for (s in seq(1:length(sheets))) {
 df <- dataset_list[[1]]
 sample_params <- function(df){
   
+  
+  dataset_num <- filter(df, row_number() ==1)$dataset_num
+  
+  n <- df %>% nrow()
+  
+  mu_1 <- mean(df$X1)
+  mu_2 <- mean(df$X2)
+  
+  sigma2_1 <- var(df$X1)
+  sigma2_2 <- var(df$X2)
+  rho <- cov(df$X1, df$X2)/sqrt(sigma2_1*sigma2_2)
+  
   m_1 <- lm(data = df, formula = formula(Y ~ X1 + X2))
+  
+  sigma2_epsilon <- mean(m_1$residuals^2)
   
   beta_1_hat <- m_1$coefficients[["X1"]]
   
@@ -64,28 +78,17 @@ sample_params <- function(df){
   
   if (abs(t_beta_2) < 1.964) {
     beta_1_star <- beta_1_hat
+    
+    Q_xx <- matrix(nrow =2, c(sigma2_1, sqrt(sigma2_1*sigma2_2)*rho, sqrt(sigma2_1*sigma2_2)*rho, sigma2_2))
+      
+    std_err_beta_1_star <- sqrt(sigma2_epsilon*solve(Q_xx)[[1,1]]/n)
   }  else {
     beta_1_star <- beta_1_tilda
+    
+    #std_err_beta_1_star <-
   }
   
-  dataset_num <- filter(df, row_number() ==1)$dataset_num
-  
-  mu_1 <- mean(df$X1)
-  mu_2 <- mean(df$X2)
-  
-  sigma2_1 <- var(df$X1)
-  sigma2_2 <- var(df$X2)
-  rho <- cov(df$X1, df$X2)/sqrt(sigma2_1*sigma2_2)
-  
-  m_1 <- lm(Y ~ X1 + X2, data = df)
-  
-  sigma2_epsilon <- mean(m_1$residuals^2)
-  
-  # Q_xx <- matrix(nrow =2, c(sigma2_1, sqrt(sigma2_1*sigma2_2)*rho, sqrt(sigma2_1*sigma2_2)*rho, sigma2_2))
-  # 
-  # n <- df %>% nrow()
-  # 
-  # std_err_beta_1_hat <- sqrt(sigma2_epsilon*solve(Q_xx)[[1,1]]/n)
+
   
   output <- tibble(dataset_num, 
                    mu_1,
