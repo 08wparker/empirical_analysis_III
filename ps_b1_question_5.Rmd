@@ -63,6 +63,8 @@ sample_params <- function(df){
   
   beta_1_hat <- m_1$coefficients[["X1"]]
   
+  beta_1 <- 1
+  beta_2 <- 1
   
   if (is.na(m_1$coefficients[["X2"]]) == FALSE){
     t_beta_2 <- summary(m_1)$coefficients[["X2", "t value"]]
@@ -86,7 +88,7 @@ sample_params <- function(df){
     beta_1_star <- beta_1_tilda
     
     analytic_bias <- (1)*(rho*sqrt(sigma2_2/sigma2_1))
-    #std_err_beta_1_star <-
+    std_err_beta_1_star <- sqrt((1/n)*((beta_2^2*(1-rho^2)*sigma2_2)/sigma2_1 + sigma2_epsilon/sigma2_1))
   }
   
 
@@ -102,8 +104,9 @@ sample_params <- function(df){
                    beta_1_hat,
                    beta_1_tilda,
                    beta_1_star,
+                   std_err_beta_1_star,
                    analytic_bias) %>% 
-    mutate(empiric_bias = beta_1_star -1)
+    mutate(empiric_bias = beta_1_star -beta_1)
   
   return(output)
 }
@@ -131,7 +134,7 @@ sample_params(dataset_list[[2]])
 results <- map_dfr(dataset_list, sample_params)
 
 results %>%
-  kable(col.names = c("Dataset", "$\\mu_1$", "$\\mu_2$", "$\\sigma^2_1$", "$\\sigma_2^2$", "$\\rho$", "$\\sigma_{e}^2$", "$t_{\\beta_2}$", "$\\hat{\\beta}_1$", "$\\tilde{\\beta}_1$", "$\\beta_1*$", "analytic bias", "empiric bias"), digits = 2)
+  kable(col.names = c("Dataset", "$\\mu_1$", "$\\mu_2$", "$\\sigma^2_1$", "$\\sigma_2^2$", "$\\rho$", "$\\sigma_{e}^2$", "$t_{\\beta_2}$", "$\\hat{\\beta}_1$", "$\\tilde{\\beta}_1$", "$\\beta_1^*$", "$se(\\beta_1^*)$", "analytic", "empiric"), digits = 2)
 ```
 
 
@@ -157,11 +160,28 @@ $$E[X'X] = (\begin{matrix}
  \sigma_1^2 & \rho \sigma_1 \sigma_2 \\ \rho \sigma_1 \sigma_2 & \sigma_2^2
 \end{matrix})$$
 
-And calculate the limiting distribution in this case
+\begin{align}
+    \sqrt{N}(\hat{\beta} - \beta) \,\,\xrightarrow{d} \,\, \mathcal{N}\left(0,  \frac{1}{(1-\rho^2)\sigma_1^2\sigma_2^2}\begin{pmatrix}\sigma_2^2 & -\rho \sigma_1 \sigma_2 \\  -\rho \sigma_1 \sigma_2  & \sigma_1^2 \end{pmatrix} \sigma_{\varepsilon}^2\right).
+\end{align}
+Thus, we obtain that 
+\begin{align}
+    \hat{\beta}_1 \sim \mathcal{N}\left(\beta_1, \frac{\sigma_{\varepsilon}^2}{N (1-\rho^2)\sigma_1^2}\right)
+\end{align}
 
-If $|t|_{\hat{\beta_2}} \leq 1.96$, then the variance is more complex
+If $|t|_{\hat{\beta_2}} \leq 1.96$, then asymptomic variance of $\tilde{\beta}_1$ is more complex
 
-...
+Note that since $Var(X_1 X_2) = (1-\rho^2)\sigma_1^2\sigma_2^2$. We obtain that
+
+\begin{align}
+    Var(\tilde{\beta}_1) \,\, = \,\, &\frac{1}{N}Var(X_1)^{-1} Var(X_1 (X_2\beta_2 + \varepsilon)) Var(X_1)^{-1} \notag\\
+    \,\, = \,\, & \frac{1}{N}Var(X_1)^{-1} \Big[Var(X_1 X_2\beta_2) + Var(X_1\varepsilon)\Big] Var(X_1)^{-1}\notag\\
+    \,\, = \,\, & \frac{1}{N}\left[\frac{\beta_2^2(1-\rho^2)\sigma_2^2}{\sigma_1^2} + \frac{\sigma_{\varepsilon}^2}{\sigma_1^2}\right].
+\end{align}
+
+Thus, we obtain that 
+\begin{align}
+\tilde{\beta}_1 \sim \mathcal{N}\left(\beta_1 + \frac{\rho \sigma_2}{\sigma_1}\beta_2, \frac{1}{N}\left[\frac{\beta_2^2(1-\rho^2)\sigma_2^2}{\sigma_1^2} + \frac{\sigma_{\varepsilon}^2}{\sigma_1^2}\right] \right)
+\end{align}
 
 
 
@@ -189,11 +209,18 @@ $$E[\tilde{\beta}_1] = \beta_1 + \beta_2\frac{\rho \sigma_2}{\sigma_1}$$
 So then the $E[\beta_1^*]$
 
 $$E[\beta_1^*]= P(|t|_{\hat{\beta_2}} > 1.96)*\beta_1 + P(|t|_{\hat{\beta_2}} \leq 1.96)*(\beta_1 + \beta_2\frac{\rho \sigma_2}{\sigma_1})$$
+The expected bias is then
 
-...plug in for P(t>1.96)...
+$$E[\beta_1^* - \beta_1]= P(|t|_{\hat{\beta_2}} \leq 1.96)*( \beta_2\frac{\rho \sigma_2}{\sigma_1})$$
 
 
-## Parameter distribution in the datasets
+
+## Relationship of parameters to observed bias
+
+Based on our dervied expressions, higher values of $\sigma^2_{\epsilon}$, $\sigma^2_{2}$, and $\rho$ should be correlated with higher bias of the pre-test estimator. Lower values of $\sigma^2_1\\$ are correlated with lower bias of the pre-test estimator. We made several plots to illustrate this.
+
+
+### Parameter distribution in the datasets
 ```{r}
 results %>%
   ggplot(aes(x = rho)) +
@@ -219,9 +246,6 @@ results %>%
   geom_histogram()
 ```
 
-## Relationship of parameters to observed bias
-
-
 
 ```{r}
 results %>%
@@ -230,7 +254,7 @@ results %>%
 ```
 
 
-## fixing $\rho = 1$ and estimating bias as a function of $\sigma^2_{epsilon}$
+### fixing $\rho = 1$ and estimating bias as a function of $\sigma^2_{\epsilon}$
 ```{r}
 results %>%
   filter(rho ==1) %>% 
@@ -239,16 +263,17 @@ results %>%
 ```
 
 
+### fixing $\rho = 1$ and estimating bias as a function of $\sigma^2_{\epsilon}$
 ```{r}
-
 results %>%
   ggplot(aes(x = rho, y = sigma2_2/sigma2_1,  color = abs(empiric_bias))) + 
   geom_point() + labs(x = "p", y = "var(X2)/var(X1)", color = "|observed bias in beta1|") +
-  scale_color_distiller(palette = )
+  scale_color_distiller()
 ```
 
 
-# C
+
+# C: Bayesian approach
 
 A bayesian would assume a prior distribution for $\theta = (\beta_0, \beta_1, \beta_2)$, e.g.
 
