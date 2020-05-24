@@ -1,0 +1,164 @@
+---
+title: 'ECON312 Problem Set B3'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(tidyverse)
+library(knitr)
+
+set.seed(112345)
+```
+
+
+# 2: Roy Model of College
+
+$$Y_1 =  \alpha + \bar{\beta} + U_1$$
+$$Y_0 = \alpha + U_0$$
+
+$$D = \mathbf{1}\{Y_1 - Y_0 - C \geq 0\}$$
+
+$$\begin{pmatrix} U_0 \\ U_1 \\ V \end{pmatrix} \sim N(0, \begin{bmatrix} \sigma^2_0 & \sigma_{01} & \sigma_{0,V} \\ \sigma_{01} & \sigma_1^2 & \sigma_{1, V} \\ \sigma_{0,V} & \sigma_{1, V} & \sigma_V^2 \end{bmatrix}) $$
+
+Where $C = Z + V$, $Z$ is tuition and $V$ is psychic costs
+
+$$Z \perp \!\!\! \perp (U_1, U_0, V)$$
+
+
+$$U_D = \Phi(\frac{V}{\sigma_V})$$
+
+Where $\alpha = 0.67$ and $\bar{\beta} = 0.2$
+
+Assume $Z \sim U[-0.5, 0.5]$
+
+## Monte Carlo simulation of model
+```{r}
+
+roy_MC <- function(sigma_11, sigma_00, sigma_V, sigma_01, sigma_0V, sigma_1V,
+                   alpha = 0.67, beta = 0.2, N = 10000,
+                   zmin = -0.5, zmax = 0.5
+                   ){
+  
+  Sigma <- matrix(c(sigma_00, sigma_01, sigma_0V, sigma_01, sigma_11, sigma_1V, sigma_0V, sigma_1V, sigma_V), nrow = 3)
+  
+  Z <- runif(N, zmin, zmax)
+  
+  latent_vars <- MASS::mvrnorm(N, c(0,0,0), Sigma) %>%
+           as_tibble()
+  
+  
+  colnames(latent_vars) <- c("U_0", "U_1", "V")
+  
+  
+  outcomes <- latent_vars %>%
+    cbind(Z) %>%
+    mutate(Y_1 = alpha + beta + U_1,
+           Y_0 = alpha + U_0,
+           beta_i = Y_1 - Y_0,
+           C = Z + V,
+           D = ifelse(Y_1 - Y_0 - C >= 0, 1, 0),
+           U_D = pnorm(V/sigma_V),
+           mu_d_sigma_check = pnorm((beta + U_1 - U_0 - Z)/sigma_V),
+           D_check = ifelse(mu_d_sigma_check >= U_D, 1, 0),
+           Y = D*Y_1 + (1-D)*Y_0)
+  
+  outcomes
+  
+}
+
+
+```
+
+
+
+
+
+## Derive and graph the MTE
+
+The propensity score $P(Z)$ is
+
+$$P(D = 1| Z) = E[\mathbf{1}\{Y_1 - Y_0 - C \geq 0\}|Z]$$
+
+plugging in for $Y_1 - Y_0 - C = \bar{\beta} + U_1 - U_0 - Z - V$, we have
+
+
+$$P(Z) = P(\bar{\beta} + U_1 - U_0 - Z - V \geq 0)$$
+re-arranging and dividing by $\sigma_V$ we get
+
+$$P(Z) = P(\frac{\bar{\beta} + U_1 - U_0 - Z}{\sigma_V}  \geq \frac{V}{\sigma_V})$$
+
+The MTE is defined as
+
+
+$$E[Y_1 - Y_0 | U_D = u_d]$$
+
+
+### Configuration I
+```{r}
+plot_MTE <- function(result){
+  result %>%
+  ggplot(aes(x = U_D, y = beta_i)) + 
+  geom_point() + geom_smooth() +
+    labs(x = "U_D", y = "Y1 - Y0")
+}
+
+config_1 <- roy_MC(1,1,1,0,0,0)
+
+plot_MTE(config_1)
+```
+
+The MTE is constant in configuration I
+
+
+### Configuration II
+```{r}
+config_2 <- roy_MC(1,1,1,0.5,-0.5,0)
+
+plot_MTE(config_2)
+```
+
+### Configuration III
+```{r}
+config_3 <- roy_MC(1,1,1,0,0,0.5)
+
+plot_MTE(config_3)
+```
+
+### Configuration IV
+
+In configuration IV, $\sigma_V = 0$, so there is no latent variable that effects treatment choice.  
+
+
+### Configuration V
+```{r}
+config_5 <- roy_MC(1,0.25,1,0.1,-0.2,0.2)
+
+plot_MTE(config_5)
+```
+
+```{r}
+config_6 <- roy_MC(0.25,0.25,1,-0.2,0.1,-0.2)
+
+plot_MTE(config_6)
+```
+
+```{r}
+config_7 <- roy_MC(1,1,1,-0.2,0.6,0.5)
+
+plot_MTE(config_7)
+```
+
