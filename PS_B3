@@ -1,0 +1,442 @@
+---
+title: 'ECON312 Problem Set B3'
+author: Futing Chen, Hongfan Chen, Will Parker
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r, cache = FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(knitr)
+library(latex2exp)
+set.seed(112345)
+```
+
+
+# 2: Roy Model of College
+
+$$Y_1 =  \alpha + \bar{\beta} + U_1$$
+$$Y_0 = \alpha + U_0$$
+
+$$D = \mathbf{1}\{Y_1 - Y_0 - C \geq 0\}$$
+
+$$\begin{pmatrix} U_0 \\ U_1 \\ V \end{pmatrix} \sim N(0, \begin{bmatrix} \sigma^2_0 & \sigma_{01} & \sigma_{0,V} \\ \sigma_{01} & \sigma_1^2 & \sigma_{1, V} \\ \sigma_{0,V} & \sigma_{1, V} & \sigma_V^2 \end{bmatrix}) $$
+
+Where $C = Z + V$, $Z$ is tuition and $V$ is psychic costs
+
+$$Z \perp \!\!\! \perp (U_1, U_0, V)$$
+
+Where $\alpha = 0.67$ and $\bar{\beta} = 0.2$
+
+Assume $Z \sim U[-0.5, 0.5]$
+
+## Monte Carlo simulation of model
+```{r}
+roy_MC <- function(config_num, sigma_11, sigma_00, sigma_V, sigma_01, sigma_0V, sigma_1V,
+                   alpha = 0.67, beta = 0.2, N = 100000,
+                   zmin = -0.5, zmax = 0.5
+                   ){
+  
+  Z <- runif(N, zmin, zmax)
+  
+  if (sigma_V > 0){
+      Sigma <- matrix(c(sigma_00, sigma_01, sigma_0V, sigma_01, sigma_11, sigma_1V, sigma_0V, sigma_1V, sigma_V^2), nrow = 3)
+      
+        latent_vars <- MASS::mvrnorm(N, c(0,0,0), Sigma) %>%
+           as_tibble()
+        
+        colnames(latent_vars) <- c("U_0", "U_1", "V")
+   
+  } else {
+          Sigma <- matrix(c(sigma_00, sigma_01, sigma_01, sigma_11), nrow = 2)
+          
+        latent_vars <- MASS::mvrnorm(N, c(0,0), Sigma) %>%
+           as_tibble()
+        
+        colnames(latent_vars) <- c("U_0", "U_1")
+        
+        latent_vars <- latent_vars %>%
+          mutate(V = 0)
+          
+  }
+  
+  sigma_v_tilde <- sqrt(sigma_00 + sigma_11 + sigma_V -2*sigma_01 +2*sigma_0V - 2*sigma_1V)
+  
+  
+  outcomes <- latent_vars %>%
+    cbind(Z) %>%
+    mutate(Y_1 = alpha + beta + U_1,
+           Y_0 = alpha + U_0,
+           beta_i = Y_1 - Y_0,
+           C = Z + V,
+           D = ifelse(Y_1 - Y_0 - C >= 0, 1, 0),
+           V_tilde = V + U_0 - U_1,
+           U_D = pnorm(V_tilde/sigma_v_tilde),
+           MTE = beta + V_tilde*(-sigma_11 - sigma_00 +2*sigma_01 +sigma_1V - sigma_0V)/sigma_v_tilde^2,
+           Y = D*Y_1 + (1-D)*Y_0,
+           config_num = config_num)
+  
+  outcomes
+  
+}
+```
+
+
+### Simulations for $Z ~ U(-0.5, 0.5)$
+```{r}
+config_1 <- roy_MC("I", 1,1,1,0,0,0)
+config_2 <- roy_MC("II",1,1,1,0.5,-0.5,0)
+config_3 <- roy_MC("III",1,1,1,0,0,0.5)
+config_4 <- roy_MC("IV",1,1,0, 0.5,0,0)
+config_5 <- roy_MC("V", 1,0.25,1,0.1,-0.2,0.2)
+config_6 <- roy_MC("VI",0.25,0.25,1,-0.2,0.1,-0.2)
+config_7 <- roy_MC("VII",1,1,1,-0.2,0.6,0.5)
+config_list <- list(config_1, config_2, config_3, 
+                    config_4, config_5, config_6, config_7)
+```
+
+
+## A. Derive and graph the MTE
+
+The propensity score $P(Z)$ is
+
+$$P(D = 1| Z) = E[\mathbf{1}\{Y_1 - Y_0 - C \geq 0\}|Z]$$
+
+plugging in for $Y_1 - Y_0 - C = \bar{\beta} + U_1 - U_0 - Z - V$, we have
+
+
+$$P(Z) = P(\bar{\beta} + U_1 - U_0 - Z - V \geq 0)$$
+re-arranging we have
+
+$$P(Z) = P(\bar{\beta}  - Z \geq V + U_0 - U_1)$$
+Or
+
+$$P(Z) = P( V + U_0 - U_1 \leq \bar{\beta}  - Z)$$
+
+Writing it this way, we can define a latent variable $\tilde{V} = -U_1 + U_0 + V$ that will contribute to treatment choice. The Computing the variance $Var(-U_1 + U_0 + V)$, we have
+
+
+$$Var(-U_1 + U_0 + V) = \sigma_{\tilde{V}}^2 =  \sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}$$
+
+Since we know that $(U_1, U_0, V)$ is distributed as multivariate normal, $\tilde{V} \sim N(0, \sqrt{\sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}})$. So we can re-write the propensity score as
+
+$$P(D=1|Z) = P(Z =z) = P(\frac{\tilde{V}}{\sigma_{\tilde{V}}} \leq \frac{\bar{\beta}  - Z}{\sigma_{\tilde{V}}}) $$
+and since $\frac{\tilde{V}}{\sigma_{\tilde{V}}} \sim N(0,1)$, finally we can write 
+
+$$P(Z) = U_D = \Phi(\frac{\bar{\beta}  - Z}{\sigma_{\tilde{V}}}) $$
+
+Therefore we define the MTE as
+
+$$MTE(U_D) = E[Y_1 - Y_0 | U_D = u_D] = E[Y_1 - Y_0 | \tilde{V} = \tilde{v}] $$
+Because of **index sufficiency**. 
+
+$$E[Y_1 -Y_0| \tilde{V} = \tilde{v}] = \bar{\beta} + E[U_1 -U_0| \tilde{V} = \tilde{v}]$$
+Because of the given multivariate normal relationship, we can expand the second term
+
+$$E[Y_1 -Y_0| Z = z ] = \bar{\beta} + Cov(U_1 - U_0, \frac{-U_1 + U_0 + V}{\sigma_{\tilde{V}}})*(-U_1 + U_0 + V)$$
+Note
+$$Cov(U_1 - U_0,\frac{-U_1 + U_0 + V}{\sigma_{\tilde{V}}}) = \frac{1}{\sigma_{\tilde{V}}}(-Var(U_1 - U_0) + Cov(U_1 - U_0, V)) = \frac{1}{\sigma_{\tilde{V}}}(-\sigma_1^2 - \sigma_0^2 + 2\sigma_{01} + \sigma_{V1} - \sigma_{V0}) $$
+So plugging in we have 
+$$\Delta^{MTE} = \bar{\beta} + \frac{-\sigma_1^2 - \sigma_0^2 + 2\sigma_{01} + \sigma_{V1} - \sigma_{V0}}{ \sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}}*(V + U_0 -U_1)$$
+
+
+
+```{r}
+MTE <- function(config_num,
+                     sigma_11, sigma_00, sigma_V, sigma_01, sigma_0V, sigma_1V,
+                     beta = 0.2){
+  
+  sigma_v_tilde <- sqrt(sigma_00 + sigma_11 + sigma_V -2*sigma_01 +2*sigma_0V - 2*sigma_1V)
+  
+  V_tilde <- rnorm(n = 200, mean = 0, sd = sigma_v_tilde)
+  
+  tibble(V_tilde) %>%
+    mutate(configuration = config_num,
+           U_d = pnorm(V_tilde/sigma_v_tilde),
+           MTE = beta + V_tilde*(-sigma_11 - sigma_00 +2*sigma_01 +sigma_1V - sigma_0V)/sigma_v_tilde^2)
+  
+}
+all_MTEs <- 
+  MTE("I", 1,1,1,0,0,0) %>%
+  rbind(MTE("II", 1,1,1,0.5,-0.5,0),
+        MTE("III", 1,1,1,0,0,0.5),
+        MTE("IV", 1,1,0, 0.5, 0, 0),
+        MTE("V", 1, 0.25, 1, 0.1, -0.2, 0.2),
+        MTE("VI", 0.25, 0.25, 1, -0.2, 0.1, -0.2),
+        MTE("VII", 1, 1, 1, -0.2, 0.6, 0.5)) 
+```
+
+
+```{r}
+all_MTEs %>%
+  ggplot(aes(x = V_tilde, y = MTE, color = configuration)) +
+  geom_line() + labs(x = TeX("V + U_0 - U_1"), y = TeX("$\\Delta^{MTE}$"), linetype = TeX("$\\bar{\\beta}$")) + geom_hline(aes(linetype = " ", yintercept = 0.2))
+```
+
+Alternatively with the latent variable normalized
+
+
+## Compute and plot LIV estimates for the configurations of parameters and data from different societies listed below.
+
+The Local IV is defined to be
+
+$$\Delta^{LIV}(P(Z)) = \frac{\partial E[Y|P(Z) = P(z)]}{\partial P(z)} = E[Y_1 - Y_o|P(Z) = P(z)]$$
+
+So we ccan write the LIV as a function of the MTE
+
+$$\Delta^{LIV}(P(Z)) = MTE(U_D = P(z)) $$
+
+
+```{r}
+all_MTEs %>%
+  ggplot(aes(x = U_d, y = MTE, color = configuration)) +
+  geom_line() + labs(x = TeX("$U_D = P(Z)$"), y = TeX("$\\Delta^{LIV}$"), linetype = TeX("$\\bar{\\beta}$")) + geom_hline(aes(linetype = " ", yintercept = 0.2))
+```
+
+### Verifying result with MC simulations
+```{r}
+config_1 %>%
+  ggplot(aes(x = V_tilde))+ 
+  geom_smooth(aes(y = beta_i, color = "MTE (from MC simulation)"), method = "lm") +
+  geom_point(aes(y = beta_i), alpha = 0.1, size = 0.1) +
+  geom_line(aes(y = MTE, color = "MTE (theory)")) + labs(color = "") +
+  theme(legend.position = "bottom") + labs(x = TeX("V + U_0 - U_1"), y = TeX("Y_1 - Y_0"))
+```
+
+
+```{r}
+config_4 %>%
+  ggplot(aes(x = V_tilde))+ 
+  geom_smooth(aes(y = beta_i, color = "MTE (from MC simulation)"), method = "lm") + 
+  geom_point(aes(y = beta_i), alpha = 0.1, size = 0.1) +
+  geom_line(aes(y = MTE, color = "MTE (theory)")) + labs(color = "") +
+  theme(legend.position = "bottom") + labs(x = TeX("V + U_0 - U_1"), y = TeX("Y_1 - Y_0"))
+```
+
+
+## Compute both objective and subjective treatment effects
+
+???
+
+I am assuming the objective effect is just
+
+$$Y_1 - Y_0 $$
+
+## D: Derive weights and estimate treatment parameters
+
+### values estimated from monte-carlo simulations
+```{r}
+treat_effects <- function(config){
+  
+  config_num <- filter(config, row_number() ==1)$config_num
+  
+  
+  Prob_treated <- config$D %>% mean()
+  
+  ATE <- config$beta_i %>% mean()
+  
+  TT <- filter(config, D == 1)$beta_i %>% mean()
+  
+  TUT  <- filter(config, D == 0)$beta_i %>% mean()
+  
+  ols_model <- lm(Y ~ D, data = config)
+  
+  OLS <- as.numeric(ols_model$coefficients['D'])
+  
+  #linear IV
+  first_stage <- lm(D ~ Z, data = config)
+  
+  D_hat <- predict(first_stage)
+  
+  second_stage <- lm(config$Y ~ D_hat)
+  
+  linear_IV <- as.numeric(second_stage$coefficients['D_hat'])
+  
+  
+  #PRTE?
+  
+  tibble(config_num,
+         Prob_treated,
+         ATE,
+         TT,
+         TUT,
+         OLS,
+         linear_IV)
+  
+  
+}
+map_df(config_list, treat_effects) %>%
+  kable(digits = 3, 
+        col.names = c("Configuration", "$Pr(D =1)$", 
+                      "ATE", "TOT", "TUT", "OLS", "Linear IV"))
+```
+
+
+Taking our expression for
+
+$$\Delta^{MTE} = \bar{\beta} + \frac{-\sigma_1^2 - \sigma_0^2 + 2\sigma_{01} + \sigma_{V1} - \sigma_{V0}}{ \sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}}*(V + U_0 -U_1)$$
+And subsituting in for $\tilde{V} = \sigma_{\tilde{V}}*\Phi^{-1}(U_D)$, we have
+
+$$\Delta^{MTE} = \bar{\beta} + \frac{-\sigma_1^2 - \sigma_0^2 + 2\sigma_{01} + \sigma_{V1} - \sigma_{V0}}{\sqrt{\sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}}}*\Phi^{-1}(U_D)$$
+We will label the ratio of the variances
+$$c = \frac{-\sigma_1^2 - \sigma_0^2 + 2\sigma_{01} + \sigma_{V1} - \sigma_{V0}}{\sqrt{\sigma_v^2 + \sigma_0^2 + \sigma_1^2 - 2\sigma_{01} + 2\sigma_{0V} -2\sigma_{1V}}}$$
+### ATE
+$$ATE = \int_{0}^{1} (1)*\Delta^{MTE} du_D$$
+
+So plugging in our expression above we have
+$$ATE = \bar{\beta} + c*\int_{0}^{1} \Phi^{-1}(u_d) du_D$$
+
+And note with a change of variables
+
+$$\int_{0}^{1} \Phi^{-1}(u_d) du_D = \int_{-\infty}^{\infty} \tilde{v}*f(\tilde{v})d\tilde{v}$$
+Where $f(\tilde{v})$ is the pdf of $\tilde{V} \sim N(0, \sigma_{\tilde{v}})$ as derived in part A. The RHS is just $E[\tilde{V}]= 0$, so we have
+$$ATE = \bar{\beta} = 0.2$$
+So the ATE should be the same for all the configurations and constant across $u_d$
+## TT
+$$\Delta^{TT} = \int_{0}^{1} \omega_{TT}*\Delta^{MTE} du_D$$
+
+Where:
+
+$$\omega_{TT} = \frac{Pr(P(z) \geq u_D )}{Pr(D = 1)}$$
+
+Evaluating the denominator
+$$E(P(Z)) = E[\Phi(\frac{\bar{\beta}  - Z}{\sigma_{\tilde{V}}})]  $$
+
+Taking the expection w.r.t Z, since $Z ~ U(-0.5, 0.5)$
+
+$$E(P(Z)) = \Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})$$
+Note that because $P(z) \sim U(0,1)$, we know 
+
+$$P(P(z) \geq u_D) = 1-u_D$$
+
+We know the 
+
+$$\omega_{TT} = \frac{1 - u_D}{\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})}$$
+
+So pluggin in our equation for MTE
+$$\Delta^{TT}(u_D) = \bar{\beta}*\int_{0}^{1} \omega_{TT} du_D + c*\int_{0}^{1} \Phi^{-1}(u_d)*\omega_{TT} du_D$$
+```{r}
+weights <- function(config_num,
+                     sigma_11, sigma_00, sigma_V, sigma_01, sigma_0V, sigma_1V,
+                     beta = 0.2){
+  
+  sigma_v_tilde <- sqrt(sigma_00 + sigma_11 + sigma_V -2*sigma_01 +2*sigma_0V - 2*sigma_1V)
+  V_tilde <- rnorm(n = 1000, mean = 0, sd = sigma_v_tilde)
+  u_d <- pnorm(V_tilde/sigma_v_tilde)
+  
+  u <- -0.3/sigma_v_tilde
+  l <- 0.7/sigma_v_tilde
+  k_TT <- 0.3*pnorm(u)+0.7*pnorm(l)-sigma_v_tilde*(dnorm(u)-dnorm(l))
+  
+  MTE <- beta + V_tilde*(-sigma_11 - sigma_00 +2*sigma_01 +sigma_1V - sigma_0V)/sigma_v_tilde^2
+  EU1_UD <- (-sigma_11+sigma_01+sigma_1V)*V_tilde/sigma_v_tilde^2
+  EU0_UD <- (sigma_00-sigma_01+sigma_0V)*V_tilde/sigma_v_tilde^2
+  w_1 <- (1-u_d)/k_TT
+  w_0 <- u_d/(1-k_TT)
+
+  tibble(u_d) %>%
+    mutate(config = config_num,
+           w_ATE = 1,
+           w_TT = (1-u_d)/k_TT,
+           w_TUT = u_d/(1-k_TT),
+           w_IV = (0.5*(beta-V_tilde)^2-0.125)/((0.105-0.5*sigma_v_tilde^2)*(pnorm(u)-pnorm(l))-0.5*sigma_v_tilde*(0.7*dnorm(u)+0.3*dnorm(l))),
+           w_OLS = 1+(EU1_UD*w_1-EU0_UD*w_0)/MTE
+           )
+}
+all_weights <-
+    weights("I", 1,1,1,0,0,0) %>%
+  rbind(weights("II", 1,1,1,0.5,-0.5,0),
+        weights("III", 1,1,1,0,0,0.5),
+        weights("IV", 1,1,0, 0.5, 0, 0),
+        weights("V", 1, 0.25, 1, 0.1, -0.2, 0.2),
+        weights("VI", 0.25, 0.25, 1, -0.2, 0.1, -0.2),
+        weights("VII", 1, 1, 1, -0.2, 0.6, 0.5)) %>%
+  pivot_longer(cols = -one_of(c("u_d", "config")), names_to = "parameter", values_to = "weight")
+
+all_weights %>% filter (parameter %in% c('w_ATE', 'w_TT', 'w_TUT')) %>%
+  ggplot(aes(x = u_d, y = weight, color = config)) +
+  geom_line() + facet_wrap(~parameter)
+
+all_weights %>% filter (parameter %in% c('w_IV', 'w_OLS')) %>%
+  ggplot(aes(x = u_d, y = weight, color = config)) +
+  geom_line() + facet_wrap(~parameter)
+```
+
+
+
+
+```{r}
+c <- NA; k_TT <- NA
+treat_effects_theory <- function(config_num,
+                     sigma_11, sigma_00, sigma_V, sigma_01, sigma_0V, sigma_1V,
+                     beta = 0.2){
+  
+  sigma_v_tilde <- sqrt(sigma_00 + sigma_11 + sigma_V -2*sigma_01 +2*sigma_0V - 2*sigma_1V)
+  
+  c <<- (-sigma_11 - sigma_00 +2*sigma_01 +sigma_1V - sigma_0V)/sigma_v_tilde
+  
+  k_TT <<- 0.3*pnorm(-0.3/sigma_v_tilde)+0.7*pnorm(0.7/sigma_v_tilde)-sigma_v_tilde*(dnorm(-0.3/sigma_v_tilde)-dnorm(0.7/sigma_v_tilde))
+  integrand_TT <- function(u_D, beta.=beta,c.=c) {u_D*(beta.+c.*qnorm(u_D))}
+  int_TT <- integrate(integrand_TT, lower = 0, upper = 1)$value
+  TT <- (beta-int_TT)/k_TT
+  TUT <- int_TT/(1-k_TT)
+  
+  integrand_OLS <- function (u_D,c.=c,k_TT.=k_TT) {
+    ((-sigma_11+sigma_01+sigma_1V)*sigma_v_tilde*qnorm(u_D)/sigma_v_tilde^2)*(1-u_D)/k_TT.
+    -((sigma_00-sigma_01+sigma_0V)*sigma_v_tilde*qnorm(u_D)/sigma_v_tilde^2)*(u_D)/k_TT.*c.*qnorm(u_D)
+    }
+  int_OLS <- integrate(integrand_OLS, lower = 0, upper = 1)$value
+  beta_OLS <- beta+int_OLS
+  
+  tibble(config_num,
+         P_D1 = k_TT,
+         ATE = beta,
+         TT = TT,
+         TUT = TUT,
+         beta_OLS = beta_OLS,
+         c = c)
+}
+all_tx_effects <- 
+  treat_effects_theory("I", 1,1,1,0,0,0) %>%
+  rbind(treat_effects_theory("II", 1,1,1,0.5,-0.5,0),
+        treat_effects_theory("III", 1,1,1,0,0,0.5),
+        treat_effects_theory("IV", 1,1,0, 0.5, 0, 0),
+        treat_effects_theory("V", 1, 0.25, 1, 0.1, -0.2, 0.2),
+        treat_effects_theory("VI", 0.25, 0.25, 1, -0.2, 0.1, -0.2),
+        treat_effects_theory("VII", 1, 1, 1, -0.2, 0.6, 0.5)) 
+all_tx_effects %>%
+  kable(digits = 3,
+        col.names = c("Configuration","$Pr(D=1)$", "ATE", "TOT", "TUT", "Beta_{OLS}", "c"))
+```
+
+
+
+
+```{r,eval= FALSE, include=FALSE}
+# working text
+and we can evalute the integral
+$$\int_0^1 \frac{1 - u_D}{\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})} du_D = \frac{1}{\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})}[u_D - (1/2)*u_D^2]_0^1  = \frac{1}{2*\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})}$$
+
+Plugging this in and using the fact that $\int_{0}^{1} \Phi^{-1}(u_d) du_D = 0$, we have
+
+$$TT = \frac{1}{\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})}(\frac{\bar{\beta}}{2} - c*\int_{0}^{1} \Phi^{-1}(u_D)* u_D \space du_D)$$
+
+
+$$TT = \frac{1}{\Phi(\frac{\bar{\beta}}{\sigma_{\tilde{V}}})}(\frac{\bar{\beta}}{2} - c*\int_{-\infty}^{\infty} \frac{\tilde{v}}{\sigma_{\tilde{v}}}* \Phi(\frac{\tilde{v}}{\sigma_{\tilde{v}}}) \space d\tilde{v})$$
+```
+
